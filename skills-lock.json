@@ -1,0 +1,29 @@
+{
+  "version": 1,
+  "skills": {
+    "opentui": {
+      "source": "msmps/opentui-skill",
+      "sourceType": "github",
+      "skillPath": "skill/opentui/SKILL.md",
+      "computedHash": "7244056422f5d578beaffc95ae20a4b421923f70a8eb6a4decf49b3d79c0d2db"
+    },
+    "opentui-design": {
+      "source": "akiojin/skills",
+      "sourceType": "github",
+      "skillPath": "cli-opentui/skills/opentui-design/SKILL.md",
+      "computedHash": "7e4a4caa845a99656c05806a0fbbde91e6474f7a60e245da83f04f1ba1a0dc16"
+    },
+    "tui-design": {
+      "source": "gfargo/tui-design-skill",
+      "sourceType": "github",
+      "skillPath": "plugins/tui-design/skills/tui-design/SKILL.md",
+      "computedHash": "588869c7f0c7d6adfd7ce2d7787d269590b9fa2987eb6676aeff440a123432c0"
+    },
+    "vercel-react-best-practices": {
+      "source": "vercel-labs/agent-skills",
+      "sourceType": "github",
+      "skillPath": "skills/react-best-practices/SKILL.md",
+      "computedHash": "ca7b0c0c6e5f2750043f7f0cd72d16ac4e2abc48f9b5500d047a4b77a2506212"
+    }
+  }
+}

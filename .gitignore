@@ -1,0 +1,5 @@
+node_modules/
+dist/
+.herdr-tasks/
+*.log
+.DS_Store

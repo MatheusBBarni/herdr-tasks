@@ -1,0 +1,36 @@
+{
+  "name": "htasks",
+  "version": "0.1.0",
+  "description": "Kanban task runner for Herdr: OpenTUI board plus htasks CLI",
+  "type": "module",
+  "bin": {
+    "htasks": "src/cli/htasks.ts"
+  },
+  "files": [
+    "src",
+    "skills",
+    "README.md"
+  ],
+  "scripts": {
+    "start": "bun run src/cli/htasks.ts",
+    "board": "bun run src/cli/htasks.ts board",
+    "cli": "bun run src/cli/htasks.ts",
+    "test": "bun test",
+    "typecheck": "tsc --noEmit"
+  },
+  "engines": {
+    "bun": ">=1.3.0"
+  },
+  "dependencies": {
+    "@opentui/core": "latest",
+    "@opentui/react": "latest",
+    "commander": "^14.0.0",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "@types/react": "^19.2.0",
+    "typescript": "latest"
+  }
+}
