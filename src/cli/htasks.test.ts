@@ -74,6 +74,25 @@ test("cli errors on missing board and unknown id", async () => {
   expect(show.stderr).toContain("Unknown task")
 })
 
+test("cli config set and get theme", async () => {
+  const dir = await tempDir()
+  const init = await run(dir, ["init"])
+  expect(init.code).toBe(0)
+  const set = await run(dir, ["config", "set", "theme", "dracula"])
+  expect(set.code).toBe(0)
+  expect(set.stdout).toContain("theme=dracula")
+  const get = await run(dir, ["config", "get", "theme"])
+  expect(get.code).toBe(0)
+  expect(get.stdout.trim()).toBe("dracula")
+  const alias = await run(dir, ["config", "set", "theme", "catppuccin-light"])
+  expect(alias.code).toBe(0)
+  const got = await run(dir, ["config", "get", "theme"])
+  expect(got.stdout.trim()).toBe("catppuccin_light")
+  const bad = await run(dir, ["config", "set", "theme", "solarized"])
+  expect(bad.code).not.toBe(0)
+  expect(bad.stderr).toContain("Unknown theme")
+})
+
 test("cli doctor json reports checks", async () => {
   const dir = await tempDir()
   const doc = await run(dir, ["doctor", "--json"])

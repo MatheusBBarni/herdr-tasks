@@ -3,6 +3,7 @@ import { requireAgent } from "./agents.ts"
 import { fail } from "./errors.ts"
 import { pathExists, readText, writeFileAtomic } from "./fs.ts"
 import { pathsFor, type BoardPaths } from "./root.ts"
+import { parseThemeName, type ThemeName } from "./themes.ts"
 import { defaultConfigToml, stringifyConfig } from "./toml.ts"
 import {
   CONFIG_KEYS,
@@ -11,6 +12,7 @@ import {
   isHerdrBehavior,
   type Config,
   type ConfigKey,
+  type HerdrBehavior,
   type Lane,
 } from "./types.ts"
 
@@ -18,6 +20,7 @@ type RawConfig = {
   prefix?: unknown
   default_agent?: unknown
   default_project?: unknown
+  theme?: unknown
   lanes?: unknown
   next_id?: unknown
   herdr_bin?: unknown
@@ -87,6 +90,7 @@ export function parseConfig(text: string): Config {
     prefix,
     default_agent,
     default_project: asString(raw.default_project, ""),
+    theme: parseThemeName(raw.theme),
     lanes: parseLanes(raw.lanes),
     next_id: asInt(raw.next_id, 1),
     herdr_bin: asString(nested.bin ?? raw.herdr_bin, "herdr").trim() || "herdr",
@@ -141,6 +145,8 @@ export async function setConfigValue(paths: BoardPaths, key: string, value: stri
     config.default_agent = value
   } else if (key === "default_project") {
     config.default_project = value
+  } else if (key === "theme") {
+    config.theme = parseThemeName(value)
   } else if (key === "herdr_bin") {
     if (!value.trim()) fail("herdr_bin cannot be empty.")
     config.herdr_bin = value.trim()
@@ -150,6 +156,30 @@ export async function setConfigValue(paths: BoardPaths, key: string, value: stri
     }
     config.herdr_behavior = value
   }
+  await saveConfig(paths, config)
+  return config
+}
+
+export type SettingsPatch = {
+  theme: ThemeName
+  default_agent: string
+  default_project: string
+  herdr_behavior: HerdrBehavior
+  herdr_bin: string
+}
+
+export async function applySettings(paths: BoardPaths, patch: SettingsPatch): Promise<Config> {
+  const config = await loadConfig(paths)
+  requireAgent(config, patch.default_agent)
+  config.theme = parseThemeName(patch.theme)
+  config.default_agent = patch.default_agent
+  config.default_project = patch.default_project.trim()
+  if (!isHerdrBehavior(patch.herdr_behavior)) {
+    fail(`Invalid herdr.behavior '${patch.herdr_behavior}'. Use ${HERDR_BEHAVIORS.join(", ")}.`)
+  }
+  config.herdr_behavior = patch.herdr_behavior
+  if (!patch.herdr_bin.trim()) fail("herdr_bin cannot be empty.")
+  config.herdr_bin = patch.herdr_bin.trim()
   await saveConfig(paths, config)
   return config
 }

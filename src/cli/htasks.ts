@@ -264,7 +264,7 @@ Examples:
   configCmd
     .command("get")
     .description("Get a config value")
-    .argument("<key>", "prefix | default_agent | default_project | next_id | herdr_bin | herdr_behavior")
+    .argument("<key>", "prefix | theme | default_agent | default_project | next_id | herdr_bin | herdr_behavior")
     .action(async (key: string) => {
       const paths = await requireBoardRoot()
       const config = await loadConfig(paths)

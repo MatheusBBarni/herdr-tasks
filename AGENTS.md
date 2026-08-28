@@ -199,7 +199,7 @@ Ship `skills/htasks/SKILL.md` and copy it to `.herdr-tasks/skills/htasks/` on `i
 - Columns: backlog / in_progress / done.
 - Card: id, title, agent key, project basename.
 - Space select; Left/Right or h/l move; Esc clear; mouse click + drag if possible.
-- n/c create, e edit, Enter preview, ? help, q / Ctrl+C quit (`renderer.destroy()`).
+- n create, c close Herdr layout (done), e edit, s settings, Enter preview, o focus Herdr layout (in_progress), ? help, q / Ctrl+C quit (`renderer.destroy()`).
 - Form: Tab fields; Enter submit except in description (newline); Ctrl+Enter always submits; Esc cancel; title required; project path must exist; agent must be a config key.
 - Default project to cwd when inside a repo; default agent to `default_agent`.
 

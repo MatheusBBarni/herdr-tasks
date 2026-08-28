@@ -1,0 +1,51 @@
+{
+  "id": "cli:agent:list",
+  "result": {
+    "type": "agent_list",
+    "agents": [
+      {
+        "agent": "pi",
+        "agent_status": "working",
+        "pane_id": "wP:pV",
+        "tab_id": "wP:tT",
+        "workspace_id": "wP"
+      },
+      {
+        "agent": "pi",
+        "agent_status": "idle",
+        "pane_id": "wP:p1",
+        "tab_id": "wP:t1",
+        "workspace_id": "wP"
+      },
+      {
+        "agent": "claude",
+        "agent_status": "blocked",
+        "pane_id": "wR:p1",
+        "workspace_id": "wR"
+      },
+      {
+        "agent": "codex",
+        "agent_status": "done",
+        "pane_id": "wS:p1",
+        "workspace_id": "wS"
+      },
+      {
+        "agent": "grok",
+        "agent_status": "unknown",
+        "pane_id": "wT:p1",
+        "workspace_id": "wT"
+      },
+      {
+        "agent": "mystery",
+        "agent_status": "not-a-real-status",
+        "pane_id": "wU:p1",
+        "workspace_id": "wU"
+      },
+      {
+        "agent": "bare",
+        "pane_id": "wV:p1",
+        "workspace_id": "wV"
+      }
+    ]
+  }
+}

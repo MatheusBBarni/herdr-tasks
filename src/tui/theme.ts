@@ -1,25 +1,32 @@
+import { createContext, createElement, useContext, type ReactNode } from "react"
 import { colorEnabled } from "../lib/color.ts"
+import {
+  DEFAULT_THEME,
+  THEMES,
+  type ThemeName,
+  type ThemePalette,
+} from "../lib/themes.ts"
 
 export function tuiColor(): boolean {
   return colorEnabled(process.stdout)
 }
 
-export const theme = {
-  fg: "#e6edf3",
-  muted: "#8b949e",
-  border: "#30363d",
-  focus: "#58a6ff",
-  selectedBg: "#1f3a5f",
-  cardBg: "#161b22",
-  bg: "#0d1117",
-  error: "#f85149",
-  backlog: "#8b949e",
-  progress: "#d29922",
-  done: "#3fb950",
-} as const
+const ThemeContext = createContext<ThemePalette>(THEMES[DEFAULT_THEME])
 
-export function laneColor(lane: "backlog" | "in_progress" | "done"): string {
-  if (lane === "in_progress") return theme.progress
-  if (lane === "done") return theme.done
-  return theme.backlog
+export function ThemeProvider(props: { name: ThemeName; children: ReactNode }) {
+  const palette = THEMES[props.name] ?? THEMES[DEFAULT_THEME]
+  return createElement(ThemeContext.Provider, { value: palette }, props.children)
+}
+
+export function useTheme(): ThemePalette {
+  return useContext(ThemeContext)
+}
+
+export function laneColor(
+  lane: "backlog" | "in_progress" | "done",
+  colors: ThemePalette = THEMES[DEFAULT_THEME],
+): string {
+  if (lane === "in_progress") return colors.progress
+  if (lane === "done") return colors.done
+  return colors.backlog
 }

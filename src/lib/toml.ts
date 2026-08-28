@@ -15,6 +15,7 @@ function tableKey(name: string): string {
 export function stringifyConfig(config: Config): string {
   const lines = [
     `prefix = ${tomlString(config.prefix)}`,
+    `theme = ${tomlString(config.theme)}`,
     `default_agent = ${tomlString(config.default_agent)}`,
     `default_project = ${tomlString(config.default_project)}`,
     `lanes = [${config.lanes.map(tomlString).join(", ")}]`,
@@ -43,6 +44,7 @@ export function defaultConfigToml(opts: {
   defaultProject: string
 }): string {
   return `prefix = ${tomlString(opts.prefix)}
+theme = "nord"
 default_agent = ${tomlString(opts.defaultAgent)}
 default_project = ${tomlString(opts.defaultProject)}
 lanes = ["backlog", "in_progress", "done"]

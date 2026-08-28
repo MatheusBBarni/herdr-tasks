@@ -69,6 +69,7 @@ Optional cache: `.herdr-tasks/.index.json`. Source of truth is markdown + frontm
 
 ```toml
 prefix = "dev"
+theme = "nord"
 default_agent = "claude"
 default_project = ""
 lanes = ["backlog", "in_progress", "done"]
@@ -146,7 +147,7 @@ Lanes: `backlog` | `in_progress` | `done`
 - Save → `.herdr-tasks/tasks/<prefix>-<next_id>.md`, bump `next_id`
 - 3 columns; card: id, title, agent key, project basename
 - Space select; Left/Right or h/l move; Esc clear; mouse click + drag
-- n/c create, e edit, Enter preview, ? help, q / Ctrl+C quit (destroy renderer)
+- n create, c close Herdr layout (done), e edit, s settings, Enter preview, o focus Herdr layout (in_progress), ? help, q / Ctrl+C quit (destroy renderer)
 - Form: Tab fields; Enter submit except in description (newline); Ctrl+Enter always submits; Esc cancel; title required; project path must exist; agent must be a config key
 - Default project to cwd when inside a repo
 - Default agent to `default_agent`
@@ -185,6 +186,7 @@ Lanes: `backlog` | `in_progress` | `done`
 
 - Use only `htasks`. Do not edit `.herdr-tasks/tasks/*.md` by hand
 - `htasks root` / `htasks list --json` / `htasks show <id> --json`
+- Create: `htasks create --title T [--description D] [--agent A] [--project P] [--status backlog]`
 - Start work: `htasks move <id> in_progress`
 - Finish: `htasks move <id> done`
 - Do not create extra tasks unless asked

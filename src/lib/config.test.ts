@@ -2,7 +2,7 @@ import { afterEach, expect, test } from "bun:test"
 import { mkdtemp, rm } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import { loadConfig, parseConfig } from "./config.ts"
+import { applySettings, loadConfig, parseConfig, setConfigValue } from "./config.ts"
 import { ensureDir } from "./fs.ts"
 import { pathsFor } from "./root.ts"
 import { stringifyConfig } from "./toml.ts"
@@ -34,6 +34,7 @@ function sample(partial: Partial<Config> = {}): Config {
     prefix: "dev",
     default_agent: "claude",
     default_project: "",
+    theme: "nord",
     lanes: ["backlog", "in_progress", "done"],
     next_id: 1,
     herdr_bin: "herdr",
@@ -101,6 +102,53 @@ test("stringifyConfig writes [herdr] section", () => {
   expect(text).not.toContain("herdr_behavior")
   expect(parseConfig(text).herdr_bin).toBe("/opt/herdr")
   expect(parseConfig(text).herdr_behavior).toBe("tab")
+})
+
+test("theme defaults to nord and accepts aliases", () => {
+  expect(parseConfig(cfg()).theme).toBe("nord")
+  expect(parseConfig(cfg('theme = "dracula"')).theme).toBe("dracula")
+  expect(parseConfig(cfg('theme = "catppuccin-light"')).theme).toBe("catppuccin_light")
+  expect(parseConfig(cfg('theme = "mocha"')).theme).toBe("catppuccin")
+})
+
+test("invalid theme is an error", () => {
+  expect(() => parseConfig(cfg('theme = "solarized"'))).toThrow(/Unknown theme/)
+})
+
+test("stringifyConfig writes theme", () => {
+  const text = stringifyConfig(sample({ theme: "dracula" }))
+  expect(text).toContain('theme = "dracula"')
+  expect(parseConfig(text).theme).toBe("dracula")
+})
+
+test("setConfigValue theme canonicalizes aliases", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "htasks-cfg-"))
+  dirs.push(dir)
+  const paths = pathsFor(dir)
+  await ensureDir(paths.dataDir)
+  await Bun.write(paths.configPath, stringifyConfig(sample()))
+  const config = await setConfigValue(paths, "theme", "catppuccin-light")
+  expect(config.theme).toBe("catppuccin_light")
+  expect(await Bun.file(paths.configPath).text()).toContain('theme = "catppuccin_light"')
+})
+
+test("applySettings writes theme agent behavior and bin", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "htasks-cfg-"))
+  dirs.push(dir)
+  const paths = pathsFor(dir)
+  await ensureDir(paths.dataDir)
+  await Bun.write(paths.configPath, stringifyConfig(sample()))
+  const config = await applySettings(paths, {
+    theme: "light",
+    default_agent: "claude",
+    default_project: dir,
+    herdr_behavior: "tab",
+    herdr_bin: "/opt/herdr",
+  })
+  expect(config.theme).toBe("light")
+  expect(config.default_project).toBe(dir)
+  expect(config.herdr_behavior).toBe("tab")
+  expect(config.herdr_bin).toBe("/opt/herdr")
 })
 
 test("loadConfig rewrites legacy herdr keys into [herdr]", async () => {

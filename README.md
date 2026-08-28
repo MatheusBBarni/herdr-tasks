@@ -12,6 +12,7 @@ Agents update status with `htasks`, never by editing markdown.
 ## Features
 
 - Terminal Kanban (`htasks board`) with backlog / in_progress / done
+- Settings modal (`s`) for theme, default agent, and Herdr layout
 - One-shot CLI for list, show, create, edit, and move
 - `--json` on stdout for agents; compact tables for humans
 - Tasks as markdown with YAML frontmatter (source of truth)
@@ -132,10 +133,18 @@ htasks agents
 
 ```bash
 htasks config set herdr_behavior tab
+htasks config set theme dracula
 ```
+
+Board themes: `nord` (default), `catppuccin`, `catppuccin_light`, `light`, `dracula`.
+Change them in the TUI with `s`, or via `htasks config set theme <name>`.
+Cycling the theme field in settings previews live; Esc discards, Ctrl+Enter saves.
 
 The board does not block on Herdr.
 The card shows `starting…` until the launch finishes.
+In Progress cards poll `herdr agent list` and show one live lifecycle word (`working`, `blocked`, `idle`, `done`, `unknown`, or `gone`) before the agent key and project. That status stays in board memory — it is never written to task markdown. Herdr `done` means unseen idle; it does not finish the task.
+Press `o` on an in-progress card to focus that layout (`workspace focus`, `tab focus`, or `agent focus` for pane).
+Press `c` on a done card to close that layout (`workspace close`, `tab close`, or `pane close`).
 
 Leaving `in_progress` does not close that layout.
 
@@ -152,9 +161,12 @@ Below 40×10 it says the terminal is too small.
 | h/l, arrows | Change column, or move the selected card |
 | space | Select |
 | esc | Clear selection / close overlay |
-| n / c | New task |
+| n | New task |
+| c | Close the Herdr pane/tab/workspace for a done card |
 | e | Edit |
+| s | Settings (theme, default agent, herdr behavior, …) |
 | enter | Preview |
+| o | Focus the Herdr pane/tab/workspace for an in-progress card |
 | ? | Help |
 | q / Ctrl+C | Quit (`renderer.destroy()`) |
 
@@ -211,12 +223,14 @@ Source of truth is markdown + YAML frontmatter, not the cache.
 - Leaving `in_progress` does **not** stop the Herdr workspace.
   That is intentional so you can move a card without killing the pane.
   There is no auto-kill.
+  Press `c` on a done card to close the stored pane, tab, or workspace.
 - If a pane is already stored on the task and still alive, `move in_progress` only updates status.
 - If the Herdr server is down, htasks tries `herdr server` once and retries.
   If that fails, start Herdr yourself and retry the move.
 - `htasks config set` rewrites `config.toml` and drops comments.
 - `NO_COLOR` and `TERM=dumb` disable color.
   Status is always written as text, not color-only.
+- Herdr agent `done` is unseen idle. It is not `htasks move … done`.
 
 ## Develop
 

@@ -25,6 +25,7 @@ test("init writes config, tasks dir, and skill", async () => {
   expect(config.default_agent).toBe("claude")
   expect(config.agents.claude?.command).toBe("ccc")
   expect(config.herdr_behavior).toBe("workspace")
+  expect(config.theme).toBe("nord")
   expect(await Bun.file(paths.configPath).text()).toContain("[herdr]")
   expect(await Bun.file(paths.skillPath).exists()).toBe(true)
 })

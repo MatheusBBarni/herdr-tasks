@@ -164,6 +164,74 @@ export function parseWorkspaceCreate(payload: unknown): WorkspaceCreateResult {
   return parseCreatedLayout(payload, "workspace")
 }
 
+export type PaneInfo = {
+  pane_id: string
+  workspace_id: string
+  tab_id: string
+}
+
+export function parsePaneInfo(payload: unknown): PaneInfo {
+  const root = asRecord(payload) ?? {}
+  const result = asRecord(root.result) ?? root
+  const pane = asRecord(result.pane) ?? result
+  const pane_id = pickString(pane.pane_id, result.pane_id, root.pane_id)
+  const tab_id = pickString(pane.tab_id, result.tab_id, root.tab_id)
+  let workspace_id = pickString(
+    pane.workspace_id,
+    result.workspace_id,
+    root.workspace_id,
+    asRecord(pane.workspace)?.workspace_id,
+  )
+  if (!workspace_id && pane_id?.includes(":")) {
+    workspace_id = pane_id.slice(0, pane_id.indexOf(":"))
+  }
+  if (!pane_id || !tab_id || !workspace_id) {
+    throw new HerdrError(
+      `herdr pane get did not return pane_id, tab_id, and workspace_id. Got: ${JSON.stringify(payload).slice(0, 500)}`,
+    )
+  }
+  return { pane_id, workspace_id, tab_id }
+}
+
+export function herdrFocusArgs(
+  behavior: HerdrBehavior,
+  ids: { workspace_id?: string | null; pane_id?: string | null; tab_id?: string | null },
+): string[] {
+  if (behavior === "workspace") {
+    const id = ids.workspace_id?.trim()
+    if (!id) throw new HerdrError("No workspace_id to focus.")
+    return ["workspace", "focus", id]
+  }
+  if (behavior === "tab") {
+    const id = ids.tab_id?.trim()
+    if (!id) throw new HerdrError("No tab_id to focus.")
+    return ["tab", "focus", id]
+  }
+  const id = ids.pane_id?.trim()
+  if (!id) throw new HerdrError("No pane_id to focus.")
+  // herdr pane focus is neighbor-only (--direction). Agent commands accept a pane id.
+  return ["agent", "focus", id]
+}
+
+export function herdrCloseArgs(
+  behavior: HerdrBehavior,
+  ids: { workspace_id?: string | null; pane_id?: string | null; tab_id?: string | null },
+): string[] {
+  if (behavior === "workspace") {
+    const id = ids.workspace_id?.trim()
+    if (!id) throw new HerdrError("No workspace_id to close.")
+    return ["workspace", "close", id]
+  }
+  if (behavior === "tab") {
+    const id = ids.tab_id?.trim()
+    if (!id) throw new HerdrError("No tab_id to close.")
+    return ["tab", "close", id]
+  }
+  const id = ids.pane_id?.trim()
+  if (!id) throw new HerdrError("No pane_id to close.")
+  return ["pane", "close", id]
+}
+
 export function parseAgentNames(payload: unknown): string[] {
   const names: string[] = []
   for (const rec of agentRecords(payload)) {
@@ -175,6 +243,50 @@ export function parseAgentNames(payload: unknown): string[] {
 
 export function agentOnPane(payload: unknown, paneId: string): boolean {
   return agentRecords(payload).some((rec) => rec.pane_id === paneId)
+}
+
+export const HERDR_AGENT_STATUSES = ["idle", "working", "blocked", "done", "unknown"] as const
+export type HerdrAgentStatus = (typeof HERDR_AGENT_STATUSES)[number]
+export type LiveAgentStatus = HerdrAgentStatus | "gone"
+
+export function isHerdrAgentStatus(value: string): value is HerdrAgentStatus {
+  return (HERDR_AGENT_STATUSES as readonly string[]).includes(value)
+}
+
+/** Index `herdr agent list` JSON by pane_id. Unknown / missing statuses become `unknown`. */
+export function parseAgentStatus(payload: unknown): Map<string, HerdrAgentStatus> {
+  const map = new Map<string, HerdrAgentStatus>()
+  for (const rec of agentRecords(payload)) {
+    const paneId = pickString(rec.pane_id)
+    if (!paneId) continue
+    const raw = pickString(rec.agent_status)
+    map.set(paneId, raw && isHerdrAgentStatus(raw) ? raw : "unknown")
+  }
+  return map
+}
+
+export function joinPaneStatuses(
+  paneIds: readonly string[],
+  listed: ReadonlyMap<string, HerdrAgentStatus> | null,
+): Map<string, LiveAgentStatus> {
+  const out = new Map<string, LiveAgentStatus>()
+  for (const paneId of paneIds) {
+    if (!paneId || out.has(paneId)) continue
+    if (!listed) {
+      out.set(paneId, "gone")
+      continue
+    }
+    out.set(paneId, listed.get(paneId) ?? "gone")
+  }
+  return out
+}
+
+export async function listAgentStatuses(
+  bin: string,
+  runner: HerdrRunner = defaultRunner,
+): Promise<Map<string, HerdrAgentStatus>> {
+  const payload = await runJson(runner, bin, ["agent", "list"])
+  return parseAgentStatus(payload)
 }
 
 export function isServerRunning(payload: unknown): boolean {
@@ -251,6 +363,134 @@ export function layoutNoun(behavior: HerdrBehavior): string {
   if (behavior === "tab") return "tab"
   if (behavior === "workspace") return "workspace"
   return "pane"
+}
+
+export function hasHerdrLayout(task: Task): boolean {
+  return Boolean(task.herdr.pane_id?.trim() || task.herdr.workspace_id?.trim())
+}
+
+function workspaceIdFromPane(paneId: string | null | undefined): string | undefined {
+  if (!paneId?.includes(":")) return undefined
+  return paneId.slice(0, paneId.indexOf(":"))
+}
+
+function isLayoutGone(err: unknown): boolean {
+  if (!(err instanceof HerdrError)) return false
+  const text = `${err.message}
+${err.stderr}
+${err.stdout}`
+  return /not found|unknown|does not exist|no such|already closed/i.test(text)
+}
+
+function isCallerLayout(
+  behavior: HerdrBehavior,
+  ids: { workspace_id?: string | null; pane_id?: string | null; tab_id?: string | null },
+  env: NodeJS.Dict<string | undefined>,
+): boolean {
+  if (behavior === "workspace") {
+    return Boolean(ids.workspace_id && env.HERDR_WORKSPACE_ID === ids.workspace_id)
+  }
+  if (behavior === "tab") {
+    return Boolean(ids.tab_id && env.HERDR_TAB_ID === ids.tab_id)
+  }
+  return Boolean(ids.pane_id && env.HERDR_PANE_ID === ids.pane_id)
+}
+
+export async function focusTaskLayout(opts: {
+  bin: string
+  task: Task
+  behavior?: HerdrBehavior
+  runner?: HerdrRunner
+}): Promise<{ noun: string; id: string }> {
+  const runner = opts.runner ?? defaultRunner
+  const behavior = opts.behavior ?? "workspace"
+  const { bin, task } = opts
+  const noun = layoutNoun(behavior)
+
+  if (task.status !== "in_progress") {
+    throw new HerdrError(`${task.id} is not in progress.`)
+  }
+
+  const paneId = task.herdr.pane_id
+  let workspaceId = task.herdr.workspace_id ?? workspaceIdFromPane(paneId) ?? null
+  if (!paneId && !workspaceId) {
+    throw new HerdrError(`${task.id} has no Herdr ${noun} yet.`)
+  }
+
+  await herdrAvailable(bin, runner)
+
+  let tabId: string | null = null
+  if (behavior === "tab") {
+    if (!paneId) throw new HerdrError(`${task.id} has no pane_id.`)
+    const info = parsePaneInfo(await runJson(runner, bin, ["pane", "get", paneId]))
+    tabId = info.tab_id
+    workspaceId = workspaceId ?? info.workspace_id
+  }
+
+  const args = herdrFocusArgs(behavior, {
+    workspace_id: workspaceId,
+    pane_id: paneId,
+    tab_id: tabId,
+  })
+  await runJson(runner, bin, args)
+  const id = args[2]
+  if (!id) throw new HerdrError(`herdr ${noun} focus did not receive a target id.`)
+  return { noun, id }
+}
+
+export async function closeTaskLayout(opts: {
+  bin: string
+  task: Task
+  behavior?: HerdrBehavior
+  runner?: HerdrRunner
+  env?: NodeJS.Dict<string | undefined>
+}): Promise<{ noun: string; id: string; alreadyGone?: boolean }> {
+  const runner = opts.runner ?? defaultRunner
+  const behavior = opts.behavior ?? "workspace"
+  const env = opts.env ?? process.env
+  const { bin, task } = opts
+  const noun = layoutNoun(behavior)
+
+  if (task.status !== "done") {
+    throw new HerdrError(`${task.id} is not done.`)
+  }
+
+  const paneId = task.herdr.pane_id
+  let workspaceId = task.herdr.workspace_id ?? workspaceIdFromPane(paneId) ?? null
+  if (!paneId && !workspaceId) {
+    throw new HerdrError(`${task.id} has no Herdr ${noun} to close.`)
+  }
+
+  await herdrAvailable(bin, runner)
+
+  let tabId: string | null = null
+  if (behavior === "tab") {
+    if (!paneId) throw new HerdrError(`${task.id} has no pane_id.`)
+    try {
+      const info = parsePaneInfo(await runJson(runner, bin, ["pane", "get", paneId]))
+      tabId = info.tab_id
+      workspaceId = workspaceId ?? info.workspace_id
+    } catch (err) {
+      if (isLayoutGone(err)) return { noun, id: paneId, alreadyGone: true }
+      throw err
+    }
+  }
+
+  const ids = { workspace_id: workspaceId, pane_id: paneId, tab_id: tabId }
+  if (isCallerLayout(behavior, ids, env)) {
+    throw new HerdrError(`Refusing to close the current ${noun}.`)
+  }
+
+  const args = herdrCloseArgs(behavior, ids)
+  const id = args[2]
+  if (!id) throw new HerdrError(`herdr ${noun} close did not receive a target id.`)
+  try {
+    await runJson(runner, bin, args)
+  } catch (err) {
+    if (isLayoutGone(err)) return { noun, id, alreadyGone: true }
+    throw err
+  }
+  return { noun, id }
 }
 
 export function firstPrompt(task: Task, skillPath: string, behavior: HerdrBehavior = "workspace"): string {

@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react"
 import { useKeyboard } from "@opentui/react"
-import type { Task } from "../../lib/types.ts"
-import { theme, tuiColor } from "../theme.ts"
+import { layoutNoun } from "../../lib/herdr.ts"
+import type { HerdrBehavior, Task } from "../../lib/types.ts"
+import { tuiColor, useTheme } from "../theme.ts"
 
 type OverlayProps = {
   onClose: () => void
@@ -22,8 +23,10 @@ function useArmedEscape(onClose: () => void) {
   })
 }
 
-export function HelpOverlay(props: OverlayProps) {
+export function HelpOverlay(props: OverlayProps & { behavior: HerdrBehavior }) {
   const color = tuiColor()
+  const theme = useTheme()
+  const noun = layoutNoun(props.behavior)
   useArmedEscape(props.onClose)
   return (
     <box
@@ -39,10 +42,13 @@ export function HelpOverlay(props: OverlayProps) {
       <text>h/l or arrows   change column (or move selected)</text>
       <text>space           select card</text>
       <text>esc             clear selection / close</text>
-      <text>n or c          new task</text>
+      <text>n               new task</text>
+      <text>{`c               close herdr ${noun} (done)`}</text>
       <text>e               edit</text>
-      <text>form            Tab fields; Enter saves (newline in description); Ctrl+Enter saves</text>
+      <text>s               settings</text>
+      <text>form            tab next  ^enter save  esc cancel</text>
       <text>enter           preview</text>
+      <text>{`o               focus herdr ${noun} (in progress)`}</text>
       <text>?               help</text>
       <text>q / Ctrl+C      quit</text>
       <text>click           focus card</text>
@@ -58,6 +64,7 @@ export function HelpOverlay(props: OverlayProps) {
 
 export function PreviewOverlay(props: OverlayProps & { task: Task }) {
   const color = tuiColor()
+  const theme = useTheme()
   useArmedEscape(props.onClose)
   const { task } = props
   return (
@@ -88,6 +95,7 @@ export function PreviewOverlay(props: OverlayProps & { task: Task }) {
 
 export function TooSmall(props: { width: number; height: number }) {
   const color = tuiColor()
+  const theme = useTheme()
   return (
     <box width="100%" height="100%" justifyContent="center" alignItems="center">
       <text fg={color ? theme.error : undefined}>

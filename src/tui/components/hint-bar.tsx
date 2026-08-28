@@ -1,8 +1,9 @@
-import { theme, tuiColor } from "../theme.ts"
+import { tuiColor, useTheme } from "../theme.ts"
 import type { Hint } from "../hints.ts"
 
 export function HintBar(props: { items: readonly Hint[] }) {
   const color = tuiColor()
+  const theme = useTheme()
   const muted = color ? theme.muted : undefined
   const keyFg = color ? theme.focus : undefined
   return (

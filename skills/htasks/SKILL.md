@@ -10,9 +10,12 @@ Use **only** `htasks` to read and update tasks. Never edit `.herdr-tasks/tasks/*
 htasks root
 htasks list --json
 htasks show <id> --json
+htasks create --title T [--description D] [--agent A] [--project P] [--status backlog]
 htasks move <id> in_progress
 htasks move <id> done
 ```
+
+`create` covers the board form fields: `--title` (required), `--description`, `--agent` (config map key), `--project` (must exist). `--status` is CLI-only; default `backlog`. Prints the new id.
 
 ## Rules
 

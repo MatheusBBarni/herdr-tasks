@@ -1,20 +1,25 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useKeyboard, useRenderer, useTerminalDimensions } from "@opentui/react"
 import { agentKeys } from "../lib/agents.ts"
+import { applySettings } from "../lib/config.ts"
 import { CliError } from "../lib/errors.ts"
 import { isDirectory } from "../lib/fs.ts"
+import { closeTaskLayout, focusTaskLayout, hasHerdrLayout } from "../lib/herdr.ts"
 import { completeInProgressLaunch, moveTask } from "../lib/move.ts"
 import type { BoardPaths } from "../lib/root.ts"
-import { createTask, editTask, loadBoard, writeTask } from "../lib/store.ts"
+import { createTask, editTask, loadBoard, saveTask, writeTask } from "../lib/store.ts"
+import { DEFAULT_THEME, THEMES, type ThemeName } from "../lib/themes.ts"
 import { LANES, type Config, type Lane, type Task } from "../lib/types.ts"
 import { watchTasks } from "../lib/watch.ts"
+import { useAgentStatuses } from "./agent-status.ts"
 import { Board } from "./components/board.tsx"
 import { defaultFormValues, descriptionFromBody, TaskForm, type FormValues } from "./components/form.tsx"
 import { HelpOverlay, PreviewOverlay, TooSmall } from "./components/overlays.tsx"
+import { SettingsForm, type SettingsValues } from "./components/settings.tsx"
 import type { ToastInfo, ToastKind } from "./components/toast.tsx"
-import { theme, tuiColor } from "./theme.ts"
+import { ThemeProvider, tuiColor } from "./theme.ts"
 
-type Screen = "board" | "form" | "preview" | "help"
+type Screen = "board" | "form" | "preview" | "help" | "settings"
 
 type AppProps = {
   paths: BoardPaths
@@ -45,6 +50,8 @@ export function App(props: AppProps) {
     defaultFormValues(props.initialConfig, props.cwd),
   )
   const [formError, setFormError] = useState<string | null>(null)
+  const [settingsError, setSettingsError] = useState<string | null>(null)
+  const [previewTheme, setPreviewTheme] = useState<ThemeName | null>(null)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [focusedLane, setFocusedLane] = useState<Lane>("backlog")
   const [focusedId, setFocusedId] = useState<string | null>(props.initialTasks[0]?.id ?? null)
@@ -52,6 +59,7 @@ export function App(props: AppProps) {
   const [toast, setToast] = useState<ToastInfo | null>(null)
   const [launchingIds, setLaunchingIds] = useState<Set<string>>(() => new Set())
   const dragId = useRef<string | null>(null)
+  const closingRef = useRef(false)
   const tasksRef = useRef(tasks)
   tasksRef.current = tasks
 
@@ -87,6 +95,9 @@ export function App(props: AppProps) {
 
   const tooSmall = width < 40 || height < 10
   const singlePane = width < 80
+  const agentStatuses = useAgentStatuses(screen === "board" && !tooSmall, config.herdr_bin, tasks)
+  const activeTheme = previewTheme ?? config.theme ?? DEFAULT_THEME
+  const palette = THEMES[activeTheme] ?? THEMES[DEFAULT_THEME]
 
   const focusInLane = useCallback(
     (lane: Lane, id: string | null) => {
@@ -177,6 +188,62 @@ export function App(props: AppProps) {
     setScreen("form")
   }, [config, props.cwd])
 
+  const openHerdr = useCallback(() => {
+    const task = tasksRef.current.find((item) => item.id === focusedId)
+    if (!task) {
+      showToast("No task focused.", "error")
+      return
+    }
+    if (task.status !== "in_progress") {
+      showToast(`${task.id} is not in progress.`, "error")
+      return
+    }
+    void focusTaskLayout({
+      bin: config.herdr_bin,
+      task,
+      behavior: config.herdr_behavior,
+    })
+      .then((result) => showToast(`focused ${result.noun} ${result.id}`))
+      .catch((err) => showToast(err instanceof Error ? err.message : String(err), "error"))
+  }, [config.herdr_behavior, config.herdr_bin, focusedId, showToast])
+
+  const closeHerdr = useCallback(() => {
+    const task = tasksRef.current.find((item) => item.id === focusedId)
+    if (!task) {
+      showToast("No task focused.", "error")
+      return
+    }
+    if (task.status !== "done" || !hasHerdrLayout(task)) {
+      showToast(`${task.id} has no Herdr layout to close.`, "error")
+      return
+    }
+    if (closingRef.current) return
+    closingRef.current = true
+    void closeTaskLayout({
+      bin: config.herdr_bin,
+      task,
+      behavior: config.herdr_behavior,
+    })
+      .then(async (result) => {
+        const latest = tasksRef.current.find((item) => item.id === task.id) ?? task
+        const cleared = {
+          ...latest,
+          herdr: { workspace_id: null, pane_id: null, agent_name: null },
+        }
+        const saved = await saveTask(cleared)
+        setTasks((all) => all.map((item) => (item.id === saved.id ? saved : item)))
+        showToast(
+          result.alreadyGone
+            ? `${result.noun} already closed`
+            : `closed ${result.noun} ${result.id}`,
+        )
+      })
+      .catch((err) => showToast(err instanceof Error ? err.message : String(err), "error"))
+      .finally(() => {
+        closingRef.current = false
+      })
+  }, [config.herdr_behavior, config.herdr_bin, focusedId, showToast])
+
   const openEdit = useCallback(() => {
     const task = tasksRef.current.find((item) => item.id === focusedId)
     if (!task) {
@@ -242,12 +309,61 @@ export function App(props: AppProps) {
     [config, editingId, focusInLane, formMode, props.paths, showToast],
   )
 
+  const openSettings = useCallback(() => {
+    setSettingsError(null)
+    setPreviewTheme(null)
+    setScreen("settings")
+  }, [])
+
+  const closeSettings = useCallback(() => {
+    setPreviewTheme(null)
+    setSettingsError(null)
+    setScreen("board")
+  }, [])
+
+  const submitSettings = useCallback(
+    async (values: SettingsValues) => {
+      if (!config.agents[values.default_agent]) {
+        setSettingsError(
+          `Unknown agent '${values.default_agent}'. Known: ${agentKeys(config).join(", ")}`,
+        )
+        return
+      }
+      const project = values.default_project.trim()
+      if (project && !(await isDirectory(project))) {
+        setSettingsError(`Project path does not exist: ${project}`)
+        return
+      }
+      if (!values.herdr_bin.trim()) {
+        setSettingsError("herdr_bin cannot be empty.")
+        return
+      }
+      try {
+        const next = await applySettings(props.paths, {
+          ...values,
+          default_project: project,
+          herdr_bin: values.herdr_bin.trim(),
+        })
+        setConfig(next)
+        setPreviewTheme(null)
+        setSettingsError(null)
+        setScreen("board")
+        showToast("settings saved")
+      } catch (err) {
+        const message =
+          err instanceof CliError ? err.message : err instanceof Error ? err.message : String(err)
+        setSettingsError(message)
+      }
+    },
+    [config, props.paths, showToast],
+  )
+
   useKeyboard((key) => {
     if (key.ctrl && key.name === "c") {
       renderer.destroy()
       return
     }
-    if (key.name === "q" && screen !== "form") {
+    if (key.name === "q" && screen !== "form" && screen !== "settings") {
       renderer.destroy()
       return
     }
@@ -284,6 +400,14 @@ export function App(props: AppProps) {
       focusInLane(nextLane, focusedId)
       return
     }
+    if (key.name === "c" && !key.ctrl && !key.meta) {
+      const task = tasksRef.current.find((item) => item.id === focusedId)
+      if (task?.status === "done" && hasHerdrLayout(task)) {
+        key.preventDefault?.()
+        closeHerdr()
+        return
+      }
+    }
     if (key.name === "n" || key.name === "c") {
       key.preventDefault?.()
       openCreate()
@@ -292,6 +416,16 @@ export function App(props: AppProps) {
     if (key.name === "e") {
       key.preventDefault?.()
       openEdit()
+      return
+    }
+    if (key.name === "s" && !key.ctrl && !key.meta && !key.shift) {
+      key.preventDefault?.()
+      openSettings()
+      return
+    }
+    if (key.name === "o" && !key.ctrl && !key.meta && !key.shift) {
+      key.preventDefault?.()
+      openHerdr()
       return
     }
     if (key.name === "enter" || key.name === "return") {
@@ -330,32 +464,19 @@ export function App(props: AppProps) {
     [applyMove],
   )
 
-  if (tooSmall) {
-    return (
-      <box width="100%" height="100%" backgroundColor={color ? theme.bg : undefined}>
-        <TooSmall width={width} height={height} />
-      </box>
-    )
-  }
-
-  return (
+  const shell = tooSmall ? (
+    <box width="100%" height="100%" backgroundColor={color ? palette.bg : undefined}>
+      <TooSmall width={width} height={height} />
+    </box>
+  ) : (
     <box
       width="100%"
       height="100%"
       flexDirection="column"
-      backgroundColor={color ? theme.bg : undefined}
+      backgroundColor={color ? palette.bg : undefined}
     >
-      {screen === "form" ? (
-        <TaskForm
-          mode={formMode}
-          initial={formInitial}
-          agentKeys={agentKeys(config)}
-          error={formError}
-          onSubmit={(values) => void submitForm(values)}
-          onCancel={() => setScreen("board")}
-        />
-      ) : screen === "help" ? (
-        <HelpOverlay onClose={() => setScreen("board")} />
+      {screen === "help" ? (
+        <HelpOverlay behavior={config.herdr_behavior} onClose={() => setScreen("board")} />
       ) : screen === "preview" && previewTask ? (
         <PreviewOverlay task={previewTask} onClose={() => setScreen("board")} />
       ) : (
@@ -367,11 +488,41 @@ export function App(props: AppProps) {
           focusedId={focusedId}
           selectedId={selectedId}
           launchingIds={launchingIds}
+          agentStatuses={agentStatuses}
           onFocusTask={onFocusTask}
           onDrop={onDrop}
           toast={toast}
         />
       )}
+      {screen === "form" ? (
+        <TaskForm
+          mode={formMode}
+          taskId={editingId}
+          initial={formInitial}
+          agentKeys={agentKeys(config)}
+          error={formError}
+          onSubmit={(values) => void submitForm(values)}
+          onCancel={() => setScreen("board")}
+        />
+      ) : null}
+      {screen === "settings" ? (
+        <SettingsForm
+          initial={{
+            theme: config.theme,
+            default_agent: config.default_agent,
+            default_project: config.default_project,
+            herdr_behavior: config.herdr_behavior,
+            herdr_bin: config.herdr_bin,
+          }}
+          agentKeys={agentKeys(config)}
+          error={settingsError}
+          onPreviewTheme={setPreviewTheme}
+          onSubmit={(values) => void submitSettings(values)}
+          onCancel={closeSettings}
+        />
+      ) : null}
     </box>
   )
+
+  return <ThemeProvider name={activeTheme}>{shell}</ThemeProvider>
 }

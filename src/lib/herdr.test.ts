@@ -1,5 +1,21 @@
 import { expect, test } from "bun:test"
-import { agentOnPane, firstPrompt, herdrCreateArgs, parseCreatedLayout, parseWorkspaceCreate } from "./herdr.ts"
+import {
+  agentOnPane,
+  closeTaskLayout,
+  firstPrompt,
+  focusTaskLayout,
+  hasHerdrLayout,
+  herdrCloseArgs,
+  herdrCreateArgs,
+  herdrFocusArgs,
+  joinPaneStatuses,
+  listAgentStatuses,
+  parseAgentStatus,
+  parseCreatedLayout,
+  parsePaneInfo,
+  parseWorkspaceCreate,
+  type HerdrRunner,
+} from "./herdr.ts"
 import type { Task } from "./types.ts"
 
 const sample: Task = {
@@ -100,4 +116,280 @@ test("first prompt names htasks and herdr", () => {
   expect(text).toContain("this workspace")
   expect(firstPrompt(sample, "/tmp/SKILL.md", "tab")).toContain("this tab")
   expect(firstPrompt(sample, "/tmp/SKILL.md", "pane")).toContain("this pane")
+})
+
+test("parsePaneInfo reads pane get JSON", () => {
+  expect(
+    parsePaneInfo({
+      result: {
+        pane: {
+          pane_id: "wP:pK",
+          tab_id: "wP:tJ",
+          workspace_id: "wP",
+        },
+      },
+    }),
+  ).toEqual({ pane_id: "wP:pK", tab_id: "wP:tJ", workspace_id: "wP" })
+})
+
+test("herdrFocusArgs follows herdr_behavior", () => {
+  const ids = { workspace_id: "w1", pane_id: "w1:p1", tab_id: "w1:t2" }
+  expect(herdrFocusArgs("workspace", ids)).toEqual(["workspace", "focus", "w1"])
+  expect(herdrFocusArgs("tab", ids)).toEqual(["tab", "focus", "w1:t2"])
+  expect(herdrFocusArgs("pane", ids)).toEqual(["agent", "focus", "w1:p1"])
+})
+
+function focusRunner(handler: (args: string[]) => { code: number; stdout: string; stderr: string }): {
+  runner: HerdrRunner
+  calls: string[][]
+} {
+  const calls: string[][] = []
+  const runner: HerdrRunner = async (_bin, args) => {
+    calls.push(args)
+    if (args[0] === "--version") return { code: 0, stdout: "0.8.2", stderr: "" }
+    return handler(args)
+  }
+  return { runner, calls }
+}
+
+const inProgress: Task = {
+  ...sample,
+  herdr: { workspace_id: "w1", pane_id: "w1:p1", agent_name: null },
+}
+
+test("focusTaskLayout focuses workspace, tab, or pane", async () => {
+  const ok = { code: 0, stdout: "{}", stderr: "" }
+  const workspace = focusRunner(() => ok)
+  expect(await focusTaskLayout({ bin: "herdr", task: inProgress, behavior: "workspace", runner: workspace.runner })).toEqual({
+    noun: "workspace",
+    id: "w1",
+  })
+  expect(workspace.calls).toEqual([["--version"], ["workspace", "focus", "w1"]])
+
+  const tab = focusRunner((args) => {
+    if (args[0] === "pane" && args[1] === "get") {
+      return {
+        code: 0,
+        stdout: JSON.stringify({
+          result: { pane: { pane_id: "w1:p1", tab_id: "w1:t2", workspace_id: "w1" } },
+        }),
+        stderr: "",
+      }
+    }
+    return ok
+  })
+  expect(await focusTaskLayout({ bin: "herdr", task: inProgress, behavior: "tab", runner: tab.runner })).toEqual({
+    noun: "tab",
+    id: "w1:t2",
+  })
+  expect(tab.calls).toEqual([
+    ["--version"],
+    ["pane", "get", "w1:p1"],
+    ["tab", "focus", "w1:t2"],
+  ])
+
+  const pane = focusRunner(() => ok)
+  expect(await focusTaskLayout({ bin: "herdr", task: inProgress, behavior: "pane", runner: pane.runner })).toEqual({
+    noun: "pane",
+    id: "w1:p1",
+  })
+  expect(pane.calls).toEqual([["--version"], ["agent", "focus", "w1:p1"]])
+})
+
+test("focusTaskLayout rejects backlog and missing layout", async () => {
+  const { runner } = focusRunner(() => ({ code: 0, stdout: "{}", stderr: "" }))
+  await expect(
+    focusTaskLayout({
+      bin: "herdr",
+      task: { ...sample, status: "backlog" },
+      runner,
+    }),
+  ).rejects.toThrow("is not in progress")
+  await expect(
+    focusTaskLayout({
+      bin: "herdr",
+      task: sample,
+      runner,
+    }),
+  ).rejects.toThrow("has no Herdr workspace yet")
+})
+
+test("herdrCloseArgs follows herdr_behavior", () => {
+  const ids = { workspace_id: "w1", pane_id: "w1:p1", tab_id: "w1:t2" }
+  expect(herdrCloseArgs("workspace", ids)).toEqual(["workspace", "close", "w1"])
+  expect(herdrCloseArgs("tab", ids)).toEqual(["tab", "close", "w1:t2"])
+  expect(herdrCloseArgs("pane", ids)).toEqual(["pane", "close", "w1:p1"])
+})
+
+const done: Task = {
+  ...sample,
+  status: "done",
+  herdr: { workspace_id: "w1", pane_id: "w1:p1", agent_name: null },
+}
+
+test("hasHerdrLayout is true when workspace or pane is set", () => {
+  expect(hasHerdrLayout(sample)).toBe(false)
+  expect(hasHerdrLayout(done)).toBe(true)
+  expect(hasHerdrLayout({ ...sample, herdr: { workspace_id: "w1", pane_id: null, agent_name: null } })).toBe(true)
+})
+
+test("closeTaskLayout closes workspace, tab, or pane", async () => {
+  const ok = { code: 0, stdout: "{}", stderr: "" }
+  const workspace = focusRunner(() => ok)
+  expect(
+    await closeTaskLayout({
+      bin: "herdr",
+      task: done,
+      behavior: "workspace",
+      runner: workspace.runner,
+      env: {},
+    }),
+  ).toEqual({ noun: "workspace", id: "w1" })
+  expect(workspace.calls).toEqual([["--version"], ["workspace", "close", "w1"]])
+
+  const tab = focusRunner((args) => {
+    if (args[0] === "pane" && args[1] === "get") {
+      return {
+        code: 0,
+        stdout: JSON.stringify({
+          result: { pane: { pane_id: "w1:p1", tab_id: "w1:t2", workspace_id: "w1" } },
+        }),
+        stderr: "",
+      }
+    }
+    return ok
+  })
+  expect(
+    await closeTaskLayout({
+      bin: "herdr",
+      task: done,
+      behavior: "tab",
+      runner: tab.runner,
+      env: {},
+    }),
+  ).toEqual({ noun: "tab", id: "w1:t2" })
+  expect(tab.calls).toEqual([
+    ["--version"],
+    ["pane", "get", "w1:p1"],
+    ["tab", "close", "w1:t2"],
+  ])
+
+  const pane = focusRunner(() => ok)
+  expect(
+    await closeTaskLayout({
+      bin: "herdr",
+      task: done,
+      behavior: "pane",
+      runner: pane.runner,
+      env: {},
+    }),
+  ).toEqual({ noun: "pane", id: "w1:p1" })
+  expect(pane.calls).toEqual([["--version"], ["pane", "close", "w1:p1"]])
+})
+
+test("closeTaskLayout rejects non-done and missing layout", async () => {
+  const { runner } = focusRunner(() => ({ code: 0, stdout: "{}", stderr: "" }))
+  await expect(
+    closeTaskLayout({
+      bin: "herdr",
+      task: inProgress,
+      runner,
+      env: {},
+    }),
+  ).rejects.toThrow("is not done")
+  await expect(
+    closeTaskLayout({
+      bin: "herdr",
+      task: { ...sample, status: "done" },
+      runner,
+      env: {},
+    }),
+  ).rejects.toThrow("has no Herdr workspace to close")
+})
+
+test("closeTaskLayout treats already-gone layout as success", async () => {
+  const missing = focusRunner(() => ({
+    code: 1,
+    stdout: JSON.stringify({
+      error: { code: "workspace_not_found", message: "workspace w1 not found" },
+    }),
+    stderr: "",
+  }))
+  expect(
+    await closeTaskLayout({
+      bin: "herdr",
+      task: done,
+      behavior: "workspace",
+      runner: missing.runner,
+      env: {},
+    }),
+  ).toEqual({ noun: "workspace", id: "w1", alreadyGone: true })
+})
+
+const agentListFixture = await Bun.file(
+  new URL("./fixtures/agent-list.json", import.meta.url),
+).json()
+
+test("parseAgentStatus indexes fixture agent-list JSON by pane_id", () => {
+  const byPane = parseAgentStatus(agentListFixture)
+  expect(byPane.get("wP:pV")).toBe("working")
+  expect(byPane.get("wP:p1")).toBe("idle")
+  expect(byPane.get("wR:p1")).toBe("blocked")
+  expect(byPane.get("wS:p1")).toBe("done")
+  expect(byPane.get("wT:p1")).toBe("unknown")
+  expect(byPane.get("wU:p1")).toBe("unknown")
+  expect(byPane.get("wV:p1")).toBe("unknown")
+  expect(byPane.has("wMissing:p1")).toBe(false)
+})
+
+test("parseAgentStatus is empty on garbage and accepts root.agents", () => {
+  expect(parseAgentStatus(null).size).toBe(0)
+  expect(parseAgentStatus("nope").size).toBe(0)
+  expect(parseAgentStatus({ agents: [{ pane_id: "w1:p1", agent_status: "idle" }] }).get("w1:p1")).toBe(
+    "idle",
+  )
+})
+
+test("joinPaneStatuses maps missing panes and failed list to gone", () => {
+  const listed = parseAgentStatus(agentListFixture)
+  const joined = joinPaneStatuses(["wP:pV", "wMissing:p1", "wP:pV"], listed)
+  expect([...joined.entries()]).toEqual([
+    ["wP:pV", "working"],
+    ["wMissing:p1", "gone"],
+  ])
+  expect([...joinPaneStatuses(["wP:pV"], null).entries()]).toEqual([["wP:pV", "gone"]])
+})
+
+test("listAgentStatuses calls agent list once and does not N× agent get", async () => {
+  const calls: string[][] = []
+  const runner: HerdrRunner = async (_bin, args) => {
+    calls.push(args)
+    return { code: 0, stdout: JSON.stringify(agentListFixture), stderr: "" }
+  }
+  const byPane = await listAgentStatuses("herdr", runner)
+  expect(calls).toEqual([["agent", "list"]])
+  expect(byPane.get("wP:pV")).toBe("working")
+})
+
+test("listAgentStatuses throws when agent list fails", async () => {
+  const runner: HerdrRunner = async () => ({
+    code: 1,
+    stdout: "",
+    stderr: "herdr: agent list failed",
+  })
+  await expect(listAgentStatuses("herdr", runner)).rejects.toThrow("agent list failed")
+})
+
+test("closeTaskLayout refuses to close the caller's layout", async () => {
+  const { runner, calls } = focusRunner(() => ({ code: 0, stdout: "{}", stderr: "" }))
+  await expect(
+    closeTaskLayout({
+      bin: "herdr",
+      task: done,
+      behavior: "workspace",
+      runner,
+      env: { HERDR_WORKSPACE_ID: "w1" },
+    }),
+  ).rejects.toThrow("Refusing to close the current workspace")
+  expect(calls).toEqual([["--version"]])
 })
