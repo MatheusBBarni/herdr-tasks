@@ -78,9 +78,9 @@ htasks init [--prefix dev] [--agent grok] [--project <path>]
 htasks board
 htasks list [--status <lane>] [--json]
 htasks show <id> [--json]
-htasks create --title T [--description D] [--agent A] [--project P] [--status backlog]
+htasks create --title T [--description D] [--type T] [--agent A] [--effort E] [--project <path|key>] [--status backlog] [--blockers id,id]
 htasks move <id> <lane>
-htasks edit <id> [--title T] [--description D] [--agent A] [--project P]
+htasks edit <id> [--title T] [--description D] [--type T] [--agent A] [--effort E] [--project <path|key>] [--blockers id,id]
 htasks path <id>
 htasks root
 htasks config get|set <key> [value]
@@ -92,7 +92,9 @@ htasks doctor [--json]
 
 Lanes: `backlog`, `in_progress`, `done`.
 
-Unknown id, bad lane, missing project path, or unknown agent key exits non-zero.
+Unknown id, bad lane, missing project path, unknown agent key, unknown type, unknown effort, or unknown blocker exits non-zero.
+A task with unfinished blockers cannot move to `in_progress`.
+`--blockers` is a comma-separated list of task ids; pass `none` or empty to clear.
 
 `htasks doctor` checks Bun, `herdr` on PATH, the Herdr server, the herdr skill (`~/.claude/skills`, `~/.agents/skills`, `~/.pi/agent/skills`, and similar), the local board, and each agent command.
 
@@ -120,6 +122,52 @@ htasks agents
 > Unknown keys are errors.
 > htasks will not guess a binary.
 > Form and CLI both require the key to exist in config.
+
+## Agent effort
+
+Each task can set an agent effort (`low`, `medium`, `high`, `xhigh`, `max`).
+It is stored on the task and applied when the agent starts (`move … in_progress`).
+
+The flag depends on the agent `kind`:
+
+| Kind | Flag |
+|------|------|
+| `pi` | `--thinking <level>` |
+| `codex` | `-c model_reasoning_effort=<level>` (`max` maps to `xhigh`) |
+| others (`claude`, `grok`, …) | `--effort <level>` |
+
+Empty / `none` means do not pass a flag (the agent default).
+Create/edit form has an effort select.
+CLI: `htasks create --title "Hard bug" --effort high`.
+
+## Task types
+
+Each task can have a type (`feat`, `fix`, `bug`, …).
+Customize the list in `.herdr-tasks/config.toml`:
+
+```toml
+task_types = ["feat", "fix", "bug", "chore", "docs", "refactor", "test"]
+default_type = "feat"
+```
+
+Create/edit form has a type select.
+Cards show the type before the agent key.
+CLI: `htasks create --title "Crash on save" --type bug`.
+
+## Projects
+
+Optional named projects in `.herdr-tasks/config.toml`:
+
+```toml
+[projects.herdr-tasks]
+name = "herdr-tasks"
+path = "/path/to/herdr-tasks"
+```
+
+When this list is present, the create/edit form uses a project select instead of a free-text path.
+`--project` on `create` / `edit` accepts a key (`herdr-tasks`) or a filesystem path.
+The task file still stores the resolved path.
+`name` is the label in the form; if omitted, the table key is used.
 
 ## Herdr layout
 
@@ -163,7 +211,7 @@ Below 40×10 it says the terminal is too small.
 | esc | Clear selection / close overlay |
 | n | New task |
 | c | Close the Herdr pane/tab/workspace for a done card |
-| e | Edit |
+| e | Edit (not done) |
 | s | Settings (theme, default agent, herdr behavior, …) |
 | enter | Preview |
 | o | Focus the Herdr pane/tab/workspace for an in-progress card |
@@ -175,10 +223,14 @@ Create/edit form: **Tab** moves fields.
 **Ctrl+Enter** always saves.
 **Esc** cancels.
 Title is required.
-Project path must exist.
+Project path must exist (or be a key from `[projects.*]` when that list is set).
 Agent must be a config key.
+Type is a select from `task_types` in config (or none).
+Effort is a select (`low`, `medium`, `high`, `xhigh`, `max`, or none) and is passed to the agent command when the task starts.
+Blockers is a select of other tasks; Enter toggles. A task cannot move to In Progress while any blocker is not done.
 Default project is cwd when you are inside a repo.
 Default agent is `default_agent`.
+Default type is `default_type`.
 
 Click a card to focus it.
 Drag onto another column to move.

@@ -15,11 +15,14 @@ const task: Task = {
   id: "dev-14",
   title: "Show Herdr agent status",
   status: "in_progress",
+  type: "feat",
   agent: "pi",
+  effort: "",
   project: "/Users/matheusbbarni/projects/herdr-tasks",
   created: "",
   updated: "",
   herdr: { workspace_id: "wP", pane_id: "wP:pV", agent_name: null },
+  blockers: [],
   body: "",
   filePath: "",
 }
@@ -68,7 +71,7 @@ test("in_progress card meta fits the 60-col floor without wrapping", async () =>
     />,
     { width: 60, height: 6 },
   )
-  expect(frame).toContain("blocked  pi  herdr-tasks")
+  expect(frame).toContain("feat  blocked  pi  herdr-tasks")
   expect(frame).toContain("dev-14")
 })
 

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useKeyboard, useRenderer, useTerminalDimensions } from "@opentui/react"
 import { agentKeys } from "../lib/agents.ts"
+import { listedProjects } from "../lib/projects.ts"
 import { applySettings } from "../lib/config.ts"
 import { CliError } from "../lib/errors.ts"
 import { isDirectory } from "../lib/fs.ts"
@@ -36,6 +37,12 @@ function adjacentLane(lane: Lane, dir: number): Lane {
   const idx = LANES.indexOf(lane)
   const next = Math.min(LANES.length - 1, Math.max(0, idx + dir))
   return LANES[next] ?? lane
+}
+
+function withoutId(ids: ReadonlySet<string>, id: string): Set<string> {
+  const next = new Set(ids)
+  next.delete(id)
+  return next
 }
 
 export function App(props: AppProps) {
@@ -131,21 +138,16 @@ export function App(props: AppProps) {
       const previous = current
       try {
         if (lane === "in_progress") {
-          setLaunchingIds((set) => new Set(set).add(id))
-          showToast(`${id} starting…`)
           const pending = await moveTask(props.paths, id, lane, { launch: false })
           setTasks((all) => all.map((task) => (task.id === id ? pending : task)))
           if (pending.herdr.pane_id) {
-            setLaunchingIds((set) => {
-              const next = new Set(set)
-              next.delete(id)
-              return next
-            })
             showToast(`${id} in_progress`)
             focusInLane(lane, id)
             setSelectedId(null)
             return
           }
+          setLaunchingIds((set) => new Set(set).add(id))
+          showToast(`${id} starting…`)
           void completeInProgressLaunch(props.paths, pending)
             .then((result) => {
               setTasks((all) => all.map((task) => (task.id === id ? result.task : task)))
@@ -160,11 +162,7 @@ export function App(props: AppProps) {
               showToast(err instanceof Error ? err.message : String(err), "error")
             })
             .finally(() => {
-              setLaunchingIds((set) => {
-                const next = new Set(set)
-                next.delete(id)
-                return next
-              })
+              setLaunchingIds((set) => withoutId(set, id))
             })
         } else {
           const updated = await moveTask(props.paths, id, lane)
@@ -174,6 +172,7 @@ export function App(props: AppProps) {
         focusInLane(lane, id)
         setSelectedId(null)
       } catch (err) {
+        setLaunchingIds((set) => withoutId(set, id))
         showToast(err instanceof Error ? err.message : String(err), "error")
       }
     },
@@ -250,13 +249,20 @@ export function App(props: AppProps) {
       showToast("No task focused.", "error")
       return
     }
+    if (task.status === "done") {
+      showToast("Cannot edit a done task.", "error")
+      return
+    }
     setFormMode("edit")
     setEditingId(task.id)
     setFormInitial({
       title: task.title,
       description: descriptionFromBody(task.title, task.body),
+      type: task.type,
       agent: task.agent,
+      effort: task.effort,
       project: task.project,
+      blockers: task.blockers,
     })
     setFormError(null)
     setScreen("form")
@@ -267,6 +273,10 @@ export function App(props: AppProps) {
       const title = values.title.trim()
       if (!title) {
         setFormError("Title is required.")
+        return
+      }
+      if (values.type && !config.task_types.includes(values.type)) {
+        setFormError(`Unknown type '${values.type}'. Known: ${config.task_types.join(", ")}`)
         return
       }
       if (!config.agents[values.agent]) {
@@ -282,8 +292,11 @@ export function App(props: AppProps) {
           const task = await createTask(props.paths, {
             title,
             description: values.description,
+            type: values.type,
             agent: values.agent,
+            effort: values.effort,
             project: values.project.trim(),
+            blockers: values.blockers,
           })
           setTasks((all) => [...all, task])
           focusInLane(task.status, task.id)
@@ -292,8 +305,11 @@ export function App(props: AppProps) {
           const task = await editTask(props.paths, editingId, {
             title,
             description: values.description,
+            type: values.type,
             agent: values.agent,
+            effort: values.effort,
             project: values.project.trim(),
+            blockers: values.blockers,
           })
           setTasks((all) => all.map((item) => (item.id === task.id ? task : item)))
           showToast(`updated ${task.id}`)
@@ -381,10 +397,12 @@ export function App(props: AppProps) {
       return
     }
     if (key.name === "j" || key.name === "down") {
+      key.preventDefault?.()
       moveFocused(1)
       return
     }
     if (key.name === "k" || key.name === "up") {
+      key.preventDefault?.()
       moveFocused(-1)
       return
     }
@@ -499,7 +517,12 @@ export function App(props: AppProps) {
           mode={formMode}
           taskId={editingId}
           initial={formInitial}
+          typeKeys={config.task_types}
           agentKeys={agentKeys(config)}
+          projectOptions={listedProjects(config)}
+          blockerTasks={tasks
+            .filter((task) => task.id !== editingId)
+            .map((task) => ({ id: task.id, title: task.title }))}
           error={formError}
           onSubmit={(values) => void submitForm(values)}
           onCancel={() => setScreen("board")}

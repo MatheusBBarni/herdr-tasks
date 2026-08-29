@@ -15,6 +15,11 @@ export type AgentEntry = {
   kind?: string
 }
 
+export type ProjectEntry = {
+  name: string
+  path: string
+}
+
 export type Config = {
   prefix: string
   default_agent: string
@@ -25,6 +30,7 @@ export type Config = {
   herdr_bin: string
   herdr_behavior: HerdrBehavior
   agents: Record<string, AgentEntry>
+  projects: Record<string, ProjectEntry>
   task_types: string[]
   default_type: string
 }
@@ -41,10 +47,12 @@ export type Task = {
   status: Lane
   type: string
   agent: string
+  effort: string
   project: string
   created: string
   updated: string
   herdr: HerdrMeta
+  blockers: string[]
   body: string
   filePath: string
 }
@@ -54,8 +62,10 @@ export type TaskInput = {
   description?: string
   type?: string
   agent?: string
+  effort?: string
   project?: string
   status?: Lane
+  blockers?: string[]
 }
 
 export type TaskPatch = {
@@ -63,7 +73,9 @@ export type TaskPatch = {
   description?: string
   type?: string
   agent?: string
+  effort?: string
   project?: string
+  blockers?: string[]
 }
 
 export const CONFIG_KEYS = [

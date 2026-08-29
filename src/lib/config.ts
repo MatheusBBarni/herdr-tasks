@@ -5,6 +5,8 @@ import { pathExists, readText, writeFileAtomic } from "./fs.ts"
 import { pathsFor, type BoardPaths } from "./root.ts"
 import { parseThemeName, type ThemeName } from "./themes.ts"
 import { defaultConfigToml, stringifyConfig } from "./toml.ts"
+import { parseProjects } from "./projects.ts"
+import { parseDefaultType, parseTaskTypes } from "./task-types.ts"
 import {
   CONFIG_KEYS,
   HERDR_BEHAVIORS,
@@ -27,6 +29,9 @@ type RawConfig = {
   herdr_behavior?: unknown
   herdr?: unknown
   agents?: unknown
+  projects?: unknown
+  task_types?: unknown
+  default_type?: unknown
 }
 
 function asString(value: unknown, fallback: string): string {
@@ -86,6 +91,7 @@ export function parseConfig(text: string): Config {
   const prefix = asString(raw.prefix, "dev").trim() || "dev"
   const default_agent = asString(raw.default_agent, Object.keys(agents)[0] ?? "claude")
   const nested = herdrTable(raw.herdr)
+  const task_types = parseTaskTypes(raw.task_types)
   return {
     prefix,
     default_agent,
@@ -96,6 +102,9 @@ export function parseConfig(text: string): Config {
     herdr_bin: asString(nested.bin ?? raw.herdr_bin, "herdr").trim() || "herdr",
     herdr_behavior: parseHerdrBehavior(nested.behavior ?? raw.herdr_behavior),
     agents,
+    projects: parseProjects(raw.projects),
+    task_types,
+    default_type: parseDefaultType(raw.default_type, task_types),
   }
 }
 

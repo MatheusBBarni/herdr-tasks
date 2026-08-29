@@ -5,11 +5,14 @@ import { inProgressPaneIds } from "./agent-status.ts"
 function task(partial: Partial<Task> & Pick<Task, "id" | "status">): Task {
   return {
     title: partial.id,
+    type: "",
     agent: "pi",
+    effort: "",
     project: "/repo",
     created: "",
     updated: "",
     herdr: { workspace_id: null, pane_id: null, agent_name: null },
+    blockers: [],
     body: "",
     filePath: "",
     ...partial,

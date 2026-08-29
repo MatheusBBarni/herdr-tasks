@@ -40,9 +40,9 @@ htasks init [--prefix dev] [--agent grok] [--project <path>]
 htasks board
 htasks list [--status <lane>] [--json]
 htasks show <id> [--json]
-htasks create --title T [--description D] [--agent A] [--project P] [--status backlog]
+htasks create --title T [--description D] [--type T] [--agent A] [--effort E] [--project <path|key>] [--status backlog] [--blockers id,id]
 htasks move <id> <lane>
-htasks edit <id> [--title T] [--description D] [--agent A] [--project P]
+htasks edit <id> [--title T] [--description D] [--type T] [--agent A] [--effort E] [--project <path|key>] [--blockers id,id]
 htasks path <id>
 htasks root
 htasks config get|set <key> [value]
@@ -72,6 +72,8 @@ prefix = "dev"
 theme = "nord"
 default_agent = "claude"
 default_project = ""
+task_types = ["feat", "fix", "bug", "chore", "docs", "refactor", "test"]
+default_type = "feat"
 lanes = ["backlog", "in_progress", "done"]
 next_id = 1
 
@@ -99,6 +101,11 @@ kind = "codex"
 [agents.opencode]
 command = "opencode"
 kind = "opencode"
+
+# optional named projects; when present, the task form uses a select
+# [projects.herdr-tasks]
+# name = "herdr-tasks"
+# path = "/path/to/herdr-tasks"
 ```
 
 ## Agent map rules
@@ -111,6 +118,13 @@ kind = "opencode"
 - Unknown agent key → error, list known keys, do not guess a binary.
 - `kind` is only for Herdr detection (`claude`, `codex`, `grok`, `opencode`, …). If omitted, use the map key when it is a known kind; otherwise leave detection to Herdr.
 
+## Project list
+
+Optional `[projects.<key>]` tables with `name` (form label; defaults to the key) and `path` (required).
+When at least one project is listed, the create/edit form uses a select instead of a text input.
+CLI `--project` accepts a key or a filesystem path. Task markdown still stores the resolved path.
+Unknown bare keys error and list known keys. Free-form paths remain valid.
+
 ## Task markdown
 
 ```md
@@ -118,7 +132,9 @@ kind = "opencode"
 id: "dev-1"
 title: "Add login"
 status: backlog
+type: feat
 agent: claude
+effort: high
 project: /abs/or/relative/path/to/repo
 created: 2026-08-28T17:00:00Z
 updated: 2026-08-28T17:00:00Z
@@ -143,12 +159,12 @@ Lanes: `backlog` | `in_progress` | `done`
 
 ## TUI (`htasks board`)
 
-- Fields: title, description, agent (from config map), project path
+- Fields: title, description, type (from config `task_types`), agent (from config map), effort (`low`/`medium`/`high`/`xhigh`/`max` or none), project path (select from `[projects.*]` when present, else text), blockers (select of other task ids)
 - Save → `.herdr-tasks/tasks/<prefix>-<next_id>.md`, bump `next_id`
-- 3 columns; card: id, title, agent key, project basename
+- 3 columns; card: id, title, type, agent key, project basename
 - Space select; Left/Right or h/l move; Esc clear; mouse click + drag
 - n create, c close Herdr layout (done), e edit, s settings, Enter preview, o focus Herdr layout (in_progress), ? help, q / Ctrl+C quit (destroy renderer)
-- Form: Tab fields; Enter submit except in description (newline); Ctrl+Enter always submits; Esc cancel; title required; project path must exist; agent must be a config key
+- Form: Tab fields; Enter submit except in description (newline) and blockers (toggle); Ctrl+Enter always submits; Esc cancel; title required; project path must exist (select from `[projects.*]` when present); agent must be a config key; effort is applied when starting the agent; blockers is a select of other tasks
 - Default project to cwd when inside a repo
 - Default agent to `default_agent`
 - Watch `.herdr-tasks/tasks` so CLI moves refresh the board
@@ -156,28 +172,29 @@ Lanes: `backlog` | `in_progress` | `done`
 
 ## Move → `in_progress` (shared hook: TUI and `htasks move`)
 
-1. Write `status=in_progress`
-2. `herdr` must be on PATH; on failure revert/keep prior status and print error
-3. Resolve agent from config: `command` + `kind`
-4. Create layout from `[herdr] behavior` (`workspace` default, or `tab` / `pane`).
-5. Parse JSON; save `workspace_id` + `pane_id`
-6. Start `command` in that pane (project cwd). Then register/detect with herdr using `kind` if needed.
-7. `safe-name` = slug(task id), `[a-z][a-z0-9_-]{0,31}`, unique
-8. `herdr agent prompt <safe-name-or-pane>`:
+1. If any `blockers` id is missing or not `done`, fail and do not change status
+2. Write `status=in_progress`
+3. `herdr` must be on PATH; on failure revert/keep prior status and print error
+4. Resolve agent from config: `command` + `kind`
+5. Create layout from `[herdr] behavior` (`workspace` default, or `tab` / `pane`).
+6. Parse JSON; save `workspace_id` + `pane_id`
+7. Start `command` in that pane (project cwd), appending the task's effort flag for the agent `kind` when effort is set. Then register/detect with herdr using `kind` if needed.
+8. `safe-name` = slug(task id), `[a-z][a-z0-9_-]{0,31}`, unique
+9. `herdr agent prompt <safe-name-or-pane>`:
    - read and execute the task file
    - absolute path to the markdown
    - use `htasks` + skill path to update status
-9. If Herdr server is down, start/attach once, retry create; surface stderr
-10. Never invent Herdr APIs. Capture IDs from JSON.
-11. Leaving `in_progress` does not kill Herdr in MVP.
-12. If `herdr.pane_id` already set, `move in_progress` only updates status (idempotent).
+10. If Herdr server is down, start/attach once, retry create; surface stderr
+11. Never invent Herdr APIs. Capture IDs from JSON.
+12. Leaving `in_progress` does not kill Herdr in MVP.
+13. If `herdr.pane_id` already set, `move in_progress` only updates status (idempotent).
 
 ## CLI rules
 
 - Human: compact tables. Agents: `--json`
 - `move` updates status + updated
 - No TTY required for list/show/move/path
-- Non-zero exit on missing board, unknown id, bad lane, missing project, unknown agent key
+- Non-zero exit on missing board, unknown id, bad lane, missing project, unknown agent key, unknown type, unknown effort, unknown blocker, unfinished blockers on move to in_progress
 - Shared lib for TUI and CLI (`src/lib/*`)
 
 ## Agent skill
@@ -186,7 +203,7 @@ Lanes: `backlog` | `in_progress` | `done`
 
 - Use only `htasks`. Do not edit `.herdr-tasks/tasks/*.md` by hand
 - `htasks root` / `htasks list --json` / `htasks show <id> --json`
-- Create: `htasks create --title T [--description D] [--agent A] [--project P] [--status backlog]`
+- Create: `htasks create --title T [--description D] [--type T] [--agent A] [--effort E] [--project P] [--status backlog] [--blockers id,id]`
 - Start work: `htasks move <id> in_progress`
 - Finish: `htasks move <id> done`
 - Do not create extra tasks unless asked

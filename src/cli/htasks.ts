@@ -6,6 +6,7 @@ import { colorEnabled, paint } from "../lib/color.ts"
 import { getConfigValue, loadConfig, saveConfig, setConfigValue } from "../lib/config.ts"
 import { formatDoctorReport, runDoctor } from "../lib/doctor.ts"
 import { CliError } from "../lib/errors.ts"
+import { parseBlockersInput } from "../lib/blockers.ts"
 import { moveTask } from "../lib/move.ts"
 import { findBoardRoot, requireBoardRoot } from "../lib/root.ts"
 import {
@@ -35,11 +36,14 @@ function taskJson(task: Task) {
     id: task.id,
     title: task.title,
     status: task.status,
+    type: task.type,
     agent: task.agent,
+    effort: task.effort,
     project: task.project,
     created: task.created,
     updated: task.updated,
     herdr: task.herdr,
+    blockers: task.blockers,
     path: task.filePath,
     body: task.body,
   }
@@ -58,6 +62,7 @@ function printTaskTable(tasks: Task[]): void {
       task.status === "done" ? "green" : task.status === "in_progress" ? "yellow" : "dim",
       task.status,
     ),
+    type: task.type,
     agent: task.agent,
     project: basename(task.project),
     title: task.title,
@@ -67,6 +72,7 @@ function printTaskTable(tasks: Task[]): void {
       [
         { key: "id", header: "ID", min: 6 },
         { key: "status", header: "STATUS", min: 8 },
+        { key: "type", header: "TYPE", min: 4 },
         { key: "agent", header: "AGENT", min: 6 },
         { key: "project", header: "PROJECT", min: 6 },
         { key: "title", header: "TITLE", min: 8, flex: true },
@@ -157,8 +163,11 @@ Examples:
       const color = colorEnabled(process.stdout)
       writeOut(`${paint(color, "bold", task.id)}  ${task.title}`)
       writeOut(`status   ${task.status}`)
+      if (task.type) writeOut(`type     ${task.type}`)
       writeOut(`agent    ${task.agent}`)
+      if (task.effort) writeOut(`effort   ${task.effort}`)
       writeOut(`project  ${task.project}`)
+      if (task.blockers.length > 0) writeOut(`blockers ${task.blockers.join(", ")}`)
       writeOut(`path     ${task.filePath}`)
       writeOut(`updated  ${task.updated}`)
       if (task.herdr.pane_id) writeOut(`pane     ${task.herdr.pane_id}`)
@@ -173,25 +182,34 @@ Examples:
     .description("Create a task")
     .requiredOption("--title <title>", "task title")
     .option("--description <text>", "markdown body")
+    .option("--type <type>", "task type from config task_types")
     .option("--agent <key>", "agent map key")
-    .option("--project <path>", "project path")
+    .option("--effort <level>", "agent effort: low, medium, high, xhigh, max")
+    .option("--project <path|key>", "project path or config project key")
     .option("--status <lane>", "initial lane", "backlog")
+    .option("--blockers <ids>", "comma-separated blocker task ids")
     .action(
       async (opts: {
         title: string
         description?: string
+        type?: string
         agent?: string
+        effort?: string
         project?: string
         status: string
+        blockers?: string
       }) => {
         const paths = await requireBoardRoot()
         const status = requireLane(opts.status) as Lane
         const task = await createTask(paths, {
           title: opts.title,
           description: opts.description,
+          type: opts.type,
           agent: opts.agent,
+          effort: opts.effort,
           project: opts.project,
           status,
+          blockers: opts.blockers !== undefined ? parseBlockersInput(opts.blockers) : undefined,
         })
         writeOut(task.id)
       },
@@ -214,15 +232,34 @@ Examples:
     .argument("<id>", "task id")
     .option("--title <title>")
     .option("--description <text>")
+    .option("--type <type>")
     .option("--agent <key>")
-    .option("--project <path>")
+    .option("--effort <level>", "agent effort: low, medium, high, xhigh, max (none to clear)")
+    .option("--project <path|key>", "project path or config project key")
+    .option("--blockers <ids>", "comma-separated blocker task ids (empty or none to clear)")
     .action(
       async (
         id: string,
-        opts: { title?: string; description?: string; agent?: string; project?: string },
+        opts: {
+          title?: string
+          description?: string
+          type?: string
+          agent?: string
+          effort?: string
+          project?: string
+          blockers?: string
+        },
       ) => {
         const paths = await requireBoardRoot()
-        const task = await editTask(paths, id, opts)
+        const task = await editTask(paths, id, {
+          title: opts.title,
+          description: opts.description,
+          type: opts.type,
+          agent: opts.agent,
+          effort: opts.effort,
+          project: opts.project,
+          blockers: opts.blockers !== undefined ? parseBlockersInput(opts.blockers) : undefined,
+        })
         writeOut(task.id)
       },
     )

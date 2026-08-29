@@ -14,11 +14,14 @@ afterEach(() => {
 
 function task(partial: Partial<Task> & Pick<Task, "id" | "status" | "title">): Task {
   return {
+    type: "feat",
     agent: "pi",
+    effort: "",
     project: "/Users/matheusbbarni/projects/herdr-tasks",
     created: "",
     updated: "",
     herdr: { workspace_id: null, pane_id: null, agent_name: null },
+    blockers: [],
     body: "",
     filePath: "",
     ...partial,
@@ -73,7 +76,7 @@ test("board shows live status on in_progress cards at 80x24", async () => {
 
 test("board 60-col single pane still shows the status word", async () => {
   const frame = await renderBoard(60, true)
-  expect(frame).toContain("working  pi  herdr-tasks")
+  expect(frame).toContain("feat  working  pi  herdr-tasks")
   expect(frame).toContain("dev-14")
   expect(frame).not.toContain("Later")
 })

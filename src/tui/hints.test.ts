@@ -6,11 +6,14 @@ const doneWithLayout: Task = {
   id: "dev-1",
   title: "X",
   status: "done",
+  type: "feat",
   agent: "claude",
+  effort: "",
   project: "/repo",
   created: "",
   updated: "",
   herdr: { workspace_id: "w1", pane_id: "w1:p1", agent_name: null },
+  blockers: [],
   body: "",
   filePath: "/repo/.herdr-tasks/tasks/dev-1.md",
 }
@@ -52,7 +55,6 @@ test("hintsForTask shows close instead of open on a done card with a layout", ()
     "select",
     "move",
     "new",
-    "edit",
     "preview",
     "help",
     "close",
@@ -68,7 +70,7 @@ test("hintsForTask shows close instead of open on a done card with a layout", ()
     "select",
     "move",
     "new",
-    "edit",
+    "preview",
     "close",
     "set",
     "quit",
@@ -77,8 +79,22 @@ test("hintsForTask shows close instead of open on a done card with a layout", ()
     "select",
     "move",
     "new",
-    "edit",
+    "close",
     "set",
     "quit",
   ])
+})
+
+test("hintsForTask hides edit on done cards", () => {
+  expect(hintsForTask(HINTS_WIDE, null).map((hint) => hint.action)).toContain("edit")
+  expect(
+    hintsForTask(HINTS_WIDE, { ...doneWithLayout, status: "backlog" }).map((hint) => hint.action),
+  ).toContain("edit")
+  expect(hintsForTask(HINTS_WIDE, doneWithLayout).map((hint) => hint.action)).not.toContain("edit")
+  expect(
+    hintsForTask(HINTS_WIDE, {
+      ...doneWithLayout,
+      herdr: { workspace_id: null, pane_id: null, agent_name: null },
+    }).map((hint) => hint.action),
+  ).not.toContain("edit")
 })

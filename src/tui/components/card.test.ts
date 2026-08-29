@@ -18,6 +18,12 @@ test("cardMeta is status, agent key, and project basename", () => {
     "gone  pi  herdr-tasks",
   )
   expect(cardMeta({ launching: false, agent: "pi", project })).toBe("pi  herdr-tasks")
+  expect(cardMeta({ launching: false, type: "feat", agent: "pi", project })).toBe(
+    "feat  pi  herdr-tasks",
+  )
+  expect(
+    cardMeta({ launching: false, status: "working", type: "bug", agent: "pi", project }),
+  ).toBe("bug  working  pi  herdr-tasks")
 })
 
 test("cardMetaLine truncates by cell width at 80×24 three-column and 60-col floor", () => {

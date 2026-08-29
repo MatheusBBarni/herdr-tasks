@@ -8,8 +8,8 @@ function isBareKey(key: string): boolean {
   return /^[A-Za-z0-9_-]+$/.test(key)
 }
 
-function tableKey(name: string): string {
-  return isBareKey(name) ? `agents.${name}` : `agents.${tomlString(name)}`
+function mapTableKey(map: string, name: string): string {
+  return isBareKey(name) ? `${map}.${name}` : `${map}.${tomlString(name)}`
 }
 
 export function stringifyConfig(config: Config): string {
@@ -18,6 +18,8 @@ export function stringifyConfig(config: Config): string {
     `theme = ${tomlString(config.theme)}`,
     `default_agent = ${tomlString(config.default_agent)}`,
     `default_project = ${tomlString(config.default_project)}`,
+    `task_types = [${config.task_types.map(tomlString).join(", ")}]`,
+    `default_type = ${tomlString(config.default_type)}`,
     `lanes = [${config.lanes.map(tomlString).join(", ")}]`,
     `next_id = ${config.next_id}`,
     "",
@@ -30,9 +32,18 @@ export function stringifyConfig(config: Config): string {
   for (const name of names) {
     const agent = config.agents[name]
     if (!agent) continue
-    lines.push(`[${tableKey(name)}]`)
+    lines.push(`[${mapTableKey("agents", name)}]`)
     lines.push(`command = ${tomlString(agent.command)}`)
     if (agent.kind) lines.push(`kind = ${tomlString(agent.kind)}`)
+    lines.push("")
+  }
+  const projectNames = Object.keys(config.projects).sort()
+  for (const name of projectNames) {
+    const project = config.projects[name]
+    if (!project) continue
+    lines.push(`[${mapTableKey("projects", name)}]`)
+    lines.push(`name = ${tomlString(project.name)}`)
+    lines.push(`path = ${tomlString(project.path)}`)
     lines.push("")
   }
   return `${lines.join("\n").trimEnd()}\n`
@@ -47,6 +58,8 @@ export function defaultConfigToml(opts: {
 theme = "nord"
 default_agent = ${tomlString(opts.defaultAgent)}
 default_project = ${tomlString(opts.defaultProject)}
+task_types = ["feat", "fix", "bug", "chore", "docs", "refactor", "test"]
+default_type = "feat"
 lanes = ["backlog", "in_progress", "done"]
 next_id = 1
 
@@ -74,5 +87,10 @@ kind = "codex"
 [agents.opencode]
 command = "opencode"
 kind = "opencode"
+
+# optional named projects; when present, the task form uses a select
+# [projects.herdr-tasks]
+# name = "herdr-tasks"
+# path = "/path/to/herdr-tasks"
 `
 }

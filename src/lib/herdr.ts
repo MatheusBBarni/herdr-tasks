@@ -1,3 +1,5 @@
+import { resolveKind } from "./agents.ts"
+import { commandWithEffort } from "./effort.ts"
 import type { AgentEntry, HerdrBehavior, Task } from "./types.ts"
 
 export type HerdrRunResult = {
@@ -564,7 +566,12 @@ export async function launchInProgress(opts: {
     agent_name: null,
   }
 
-  const run = await runner(bin, ["pane", "run", created.pane_id, agent.command])
+  const runCommand = commandWithEffort(
+    agent.command,
+    resolveKind(opts.agentKey, agent),
+    task.effort ?? "",
+  )
+  const run = await runner(bin, ["pane", "run", created.pane_id, runCommand])
   if (run.code !== 0) {
     return {
       herdr,
@@ -582,7 +589,7 @@ export async function launchInProgress(opts: {
   if (!ready) {
     return {
       herdr,
-      warning: `Started ${agent.command} in ${created.pane_id}, but Herdr has not detected an agent yet. First prompt not sent.`,
+      warning: `Started ${runCommand} in ${created.pane_id}, but Herdr has not detected an agent yet. First prompt not sent.`,
     }
   }
 

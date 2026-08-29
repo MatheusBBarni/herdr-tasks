@@ -55,10 +55,15 @@ test("create form is a compact centered card at 80x24", async () => {
       initial={{
         title: "Improve the UI of the create task form",
         description: "",
+        type: "feat",
         agent: "pi",
+        effort: "",
         project: "/Users/me/herdr-tasks",
+        blockers: [],
       }}
+      typeKeys={["feat", "fix", "bug"]}
       agentKeys={["claude", "codex", "pi"]}
+      blockerTasks={[{ id: "dev-1", title: "First" }]}
       error={null}
       onSubmit={() => {}}
       onCancel={() => {}}
@@ -68,8 +73,11 @@ test("create form is a compact centered card at 80x24", async () => {
   expect(frame).toContain("New task")
   expect(frame).toContain("title")
   expect(frame).toContain("description")
+  expect(frame).toContain("type")
+  expect(frame).toContain("effort")
   expect(frame).toContain("agent")
   expect(frame).toContain("project")
+  expect(frame).toContain("blockers")
   expect(frame).toContain("tab next")
   expect(frame).toContain("^enter save")
   expect(frame).toContain("esc cancel")
@@ -77,10 +85,16 @@ test("create form is a compact centered card at 80x24", async () => {
   expect(frame).not.toContain("newline in description")
   expect(frame).not.toContain("claude, codex")
   const lines = frame.replace(/\s+$/gm, "").split("\n")
+  const typeLine = lines.findIndex((line) => /\btype\b/.test(line))
+  const effortLine = lines.findIndex((line) => /\beffort\b/.test(line))
   const agentLine = lines.findIndex((line) => line.includes("agent"))
   const projectLine = lines.findIndex((line) => line.includes("project"))
-  expect(agentLine).toBeGreaterThan(0)
+  const blockerLine = lines.findIndex((line) => line.includes("blockers"))
+  expect(typeLine).toBeGreaterThan(0)
+  expect(effortLine).toBe(typeLine)
+  expect(agentLine).toBe(typeLine)
   expect(projectLine).toBe(agentLine)
+  expect(blockerLine).toBeGreaterThan(projectLine)
 })
 
 test("edit form titles the dialog with the task id", async () => {
@@ -91,10 +105,15 @@ test("edit form titles the dialog with the task id", async () => {
       initial={{
         title: "Improve the UI",
         description: "details",
+        type: "feat",
         agent: "pi",
+        effort: "high",
         project: "/tmp",
+        blockers: ["dev-1"],
       }}
+      typeKeys={["feat", "fix"]}
       agentKeys={["pi"]}
+      blockerTasks={[{ id: "dev-1", title: "First" }]}
       error="Title is required."
       onSubmit={() => {}}
       onCancel={() => {}}
@@ -103,18 +122,23 @@ test("edit form titles the dialog with the task id", async () => {
   )
   expect(frame).toContain("Edit dev-3")
   expect(frame).toContain("Title is required.")
+  expect(frame).toContain("blockers  dev-1")
 })
 
-test("agent and project stack on a 60-column floor", async () => {
+test("type, agent, and project stack on a 60-column floor", async () => {
   const frame = await renderForm(
     <TaskForm
       mode="create"
       initial={{
         title: "Improve the UI",
         description: "",
+        type: "feat",
         agent: "pi",
+        effort: "",
         project: "/Users/me/herdr-tasks",
+        blockers: [],
       }}
+      typeKeys={["feat", "fix"]}
       agentKeys={["pi"]}
       error={null}
       onSubmit={() => {}}
@@ -123,9 +147,13 @@ test("agent and project stack on a 60-column floor", async () => {
     { width: 60, height: 24 },
   )
   const lines = frame.replace(/\s+$/gm, "").split("\n")
+  const typeLine = lines.findIndex((line) => /\btype\b/.test(line))
+  const effortLine = lines.findIndex((line) => /\beffort\b/.test(line))
   const agentLine = lines.findIndex((line) => /\bagent\b/.test(line))
   const projectLine = lines.findIndex((line) => /\bproject\b/.test(line))
-  expect(agentLine).toBeGreaterThan(0)
+  expect(typeLine).toBeGreaterThan(0)
+  expect(effortLine).toBe(typeLine)
+  expect(agentLine).toBeGreaterThan(typeLine)
   expect(projectLine).toBeGreaterThan(agentLine)
 })
 
@@ -134,9 +162,13 @@ const formProps = {
   initial: {
     title: "Improve the UI",
     description: "details",
+    type: "feat",
     agent: "pi",
+    effort: "",
     project: "/tmp",
+    blockers: [] as string[],
   },
+  typeKeys: ["feat", "fix", "bug"],
   agentKeys: ["pi"],
   error: null as string | null,
 }
@@ -158,8 +190,11 @@ test("clicking save submits the form", async () => {
     {
       title: "Improve the UI",
       description: "details",
+      type: "feat",
       agent: "pi",
+      effort: "",
       project: "/tmp",
+      blockers: [],
     },
   ])
 })
@@ -196,6 +231,36 @@ test("clicking save with an empty title shows a field error", async () => {
   await clickLabel(setup, "^enter save")
   expect(submitted).toEqual([])
   expect(setup.captureCharFrame()).toContain("Title is required.")
+})
+
+test("project field is a select when projects are listed", async () => {
+  const frame = await renderForm(
+    <TaskForm
+      mode="create"
+      initial={{
+        title: "Improve the UI",
+        description: "",
+        type: "feat",
+        agent: "pi",
+        effort: "",
+        project: "/repo/htasks",
+        blockers: [],
+      }}
+      typeKeys={["feat", "fix"]}
+      agentKeys={["pi"]}
+      projectOptions={[
+        { key: "herdr-tasks", name: "herdr-tasks", path: "/repo/htasks" },
+        { key: "other", name: "other", path: "/repo/other" },
+      ]}
+      error={null}
+      onSubmit={() => {}}
+      onCancel={() => {}}
+    />,
+    { width: 80, height: 24 },
+  )
+  expect(frame).toContain("project")
+  expect(frame).toContain("herdr-tasks")
+  expect(frame).not.toContain("/repo/htasks")
 })
 
 test("clicking next moves focus off the title field", async () => {

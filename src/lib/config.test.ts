@@ -40,6 +40,9 @@ function sample(partial: Partial<Config> = {}): Config {
     herdr_bin: "herdr",
     herdr_behavior: "workspace",
     agents: { claude: { command: "ccc", kind: "claude" } },
+    projects: {},
+    task_types: ["feat", "fix", "bug", "chore", "docs", "refactor", "test"],
+    default_type: "feat",
     ...partial,
   }
 }
@@ -149,6 +152,89 @@ test("applySettings writes theme agent behavior and bin", async () => {
   expect(config.default_project).toBe(dir)
   expect(config.herdr_behavior).toBe("tab")
   expect(config.herdr_bin).toBe("/opt/herdr")
+})
+
+test("task_types default and custom list", () => {
+  expect(parseConfig(cfg()).task_types).toEqual([
+    "feat",
+    "fix",
+    "bug",
+    "chore",
+    "docs",
+    "refactor",
+    "test",
+  ])
+  expect(parseConfig(cfg()).default_type).toBe("feat")
+  const custom = parseConfig(cfg('task_types = ["bug", "feat"]\ndefault_type = "bug"'))
+  expect(custom.task_types).toEqual(["bug", "feat"])
+  expect(custom.default_type).toBe("bug")
+})
+
+test("invalid default_type is an error", () => {
+  expect(() => parseConfig(cfg('default_type = "epic"'))).toThrow(/Unknown default_type/)
+})
+
+test("stringifyConfig writes task_types", () => {
+  const text = stringifyConfig(sample({ task_types: ["feat", "fix"], default_type: "fix" }))
+  expect(text).toContain('task_types = ["feat", "fix"]')
+  expect(text).toContain('default_type = "fix"')
+  expect(parseConfig(text).default_type).toBe("fix")
+})
+
+test("parses [projects.*] tables", () => {
+  const config = parseConfig(`
+prefix = "dev"
+default_agent = "claude"
+next_id = 1
+
+[agents.claude]
+command = "ccc"
+
+[projects.herdr-tasks]
+name = "herdr-tasks"
+path = "/repo/htasks"
+
+[projects.other]
+path = "/repo/other"
+`)
+  expect(config.projects).toEqual({
+    "herdr-tasks": { name: "herdr-tasks", path: "/repo/htasks" },
+    other: { name: "other", path: "/repo/other" },
+  })
+})
+
+test("project table without path is an error", () => {
+  expect(() =>
+    parseConfig(`
+prefix = "dev"
+default_agent = "claude"
+next_id = 1
+
+[agents.claude]
+command = "ccc"
+
+[projects.broken]
+name = "broken"
+`),
+  ).toThrow(/missing path/)
+})
+
+test("stringifyConfig writes [projects] section", () => {
+  const text = stringifyConfig(
+    sample({
+      projects: {
+        "herdr-tasks": { name: "herdr-tasks", path: "/repo/htasks" },
+      },
+    }),
+  )
+  expect(text).toContain("[projects.herdr-tasks]")
+  expect(text).toContain('name = "herdr-tasks"')
+  expect(text).toContain('path = "/repo/htasks"')
+  expect(parseConfig(text).projects["herdr-tasks"]?.path).toBe("/repo/htasks")
+})
+
+test("stringifyConfig omits projects when empty", () => {
+  expect(stringifyConfig(sample())).not.toContain("[projects")
 })
 
 test("loadConfig rewrites legacy herdr keys into [herdr]", async () => {

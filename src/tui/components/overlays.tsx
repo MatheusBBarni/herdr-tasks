@@ -44,7 +44,7 @@ export function HelpOverlay(props: OverlayProps & { behavior: HerdrBehavior }) {
       <text>esc             clear selection / close</text>
       <text>n               new task</text>
       <text>{`c               close herdr ${noun} (done)`}</text>
-      <text>e               edit</text>
+      <text>e               edit (not done)</text>
       <text>s               settings</text>
       <text>form            tab next  ^enter save  esc cancel</text>
       <text>enter           preview</text>
@@ -80,8 +80,17 @@ export function PreviewOverlay(props: OverlayProps & { task: Task }) {
       <box flexDirection="column" flexShrink={0}>
         <text>{task.title}</text>
         <text fg={color ? theme.muted : undefined}>{`status   ${task.status}`}</text>
+        {task.type ? (
+          <text fg={color ? theme.muted : undefined}>{`type     ${task.type}`}</text>
+        ) : null}
         <text fg={color ? theme.muted : undefined}>{`agent    ${task.agent}`}</text>
+        {task.effort ? (
+          <text fg={color ? theme.muted : undefined}>{`effort   ${task.effort}`}</text>
+        ) : null}
         <text fg={color ? theme.muted : undefined}>{`project  ${task.project}`}</text>
+        {task.blockers.length > 0 ? (
+          <text fg={color ? theme.muted : undefined}>{`blockers ${task.blockers.join(", ")}`}</text>
+        ) : null}
         <text fg={color ? theme.muted : undefined}>{task.filePath}</text>
         <text> </text>
       </box>

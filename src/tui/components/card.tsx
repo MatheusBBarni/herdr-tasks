@@ -1,6 +1,7 @@
 import type { LiveAgentStatus } from "../../lib/herdr.ts"
 import { basename, truncateCells } from "../../lib/text.ts"
 import type { Task } from "../../lib/types.ts"
+import { cardRenderableId } from "../scroll.ts"
 import { tuiColor, useTheme } from "../theme.ts"
 
 type CardProps = {
@@ -16,13 +17,15 @@ type CardProps = {
 export function cardMeta(opts: {
   launching: boolean
   status?: LiveAgentStatus
+  type?: string
   agent: string
   project: string
 }): string {
   if (opts.launching) return "starting…"
   const project = basename(opts.project)
-  if (opts.status) return `${opts.status}  ${opts.agent}  ${project}`
-  return `${opts.agent}  ${project}`
+  const rest = opts.status ? `${opts.status}  ${opts.agent}  ${project}` : `${opts.agent}  ${project}`
+  const type = opts.type?.trim()
+  return type ? `${type}  ${rest}` : rest
 }
 
 export function cardMetaLine(
@@ -30,6 +33,7 @@ export function cardMetaLine(
   opts: {
     launching: boolean
     status?: LiveAgentStatus
+    type?: string
     agent: string
     project: string
   },
@@ -47,6 +51,7 @@ export function Card(props: CardProps) {
   const meta = cardMetaLine(props.width, {
     launching: props.launching,
     status: props.agentStatus,
+    type: props.task.type,
     agent: props.task.agent,
     project: props.task.project,
   })
@@ -54,6 +59,7 @@ export function Card(props: CardProps) {
 
   return (
     <box
+      id={cardRenderableId(props.task.id)}
       flexDirection="column"
       width="100%"
       paddingLeft={1}

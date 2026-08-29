@@ -1,11 +1,19 @@
 import { readdir, cp } from "node:fs/promises"
 import { join, resolve } from "node:path"
 import { requireAgent } from "./agents.ts"
+import { defaultProjectPath, resolveProjectInput } from "./projects.ts"
 import { loadConfig, saveConfig, taskFilePath, writeInitConfig } from "./config.ts"
 import { fail } from "./errors.ts"
 import { ensureDir, isDirectory, pathExists, readText, writeFileAtomic } from "./fs.ts"
 import { formatTaskId } from "./ids.ts"
 import { packagedSkillPath, pathsFor, type BoardPaths } from "./root.ts"
+import {
+  assertBlockersValid,
+  formatBlockedError,
+  parseBlockers,
+} from "./blockers.ts"
+import { normalizeEffort } from "./effort.ts"
+import { NONE_TASK_TYPE, normalizeTaskType } from "./task-types.ts"
 import {
   LANES,
   type Config,
@@ -46,11 +54,14 @@ type Frontmatter = {
   id?: unknown
   title?: unknown
   status?: unknown
+  type?: unknown
   agent?: unknown
+  effort?: unknown
   project?: unknown
   created?: unknown
   updated?: unknown
   herdr?: unknown
+  blockers?: unknown
 }
 
 function splitMarkdown(text: string): { yaml: string; body: string } {
@@ -93,7 +104,9 @@ export function parseTaskMarkdown(text: string, filePath: string): Task {
   const id = asString(fm.id)
   const title = asString(fm.title)
   const statusRaw = asString(fm.status)
+  const type = asString(fm.type)?.trim() ?? NONE_TASK_TYPE
   const agent = asString(fm.agent)
+  const effort = normalizeEffort(asString(fm.effort))
   const project = asString(fm.project)
   if (!id) fail(`Task is missing id: ${filePath}`)
   if (!title) fail(`Task ${id} is missing title.`)
@@ -105,11 +118,14 @@ export function parseTaskMarkdown(text: string, filePath: string): Task {
     id,
     title,
     status: statusRaw,
+    type,
     agent,
+    effort,
     project,
     created: asString(fm.created) ?? nowIso(),
     updated: asString(fm.updated) ?? nowIso(),
     herdr: parseHerdr(fm.herdr),
+    blockers: parseBlockers(fm.blockers),
     body: body.replace(/^\n/, ""),
     filePath,
   }
@@ -120,8 +136,11 @@ function yamlDump(task: Task): string {
     id: task.id,
     title: task.title,
     status: task.status,
+    ...(task.type ? { type: task.type } : {}),
     agent: task.agent,
+    ...(task.effort ? { effort: task.effort } : {}),
     project: task.project,
+    ...(task.blockers.length > 0 ? { blockers: task.blockers } : {}),
     created: task.created,
     updated: task.updated,
     herdr: {
@@ -183,7 +202,9 @@ export async function createTask(
   requireLane(status)
   const agent = input.agent?.trim() || config.default_agent
   requireAgent(config, agent)
-  const project = (input.project?.trim() || config.default_project || cwd).trim()
+  const type = normalizeTaskType(config, input.type, config.default_type)
+  const effort = normalizeEffort(input.effort)
+  const project = resolveProjectInput(config, input.project, defaultProjectPath(config, cwd))
   if (!(await isDirectory(resolve(project)))) {
     fail(`Project path does not exist or is not a directory: ${project}`)
   }
@@ -195,13 +216,22 @@ export async function createTask(
     id,
     title,
     status,
+    type,
     agent,
+    effort,
     project,
     created: stamp,
     updated: stamp,
     herdr: { workspace_id: null, pane_id: null, agent_name: null },
+    blockers: [],
     body: defaultBody(title, input.description ?? ""),
     filePath,
+  }
+  const existing = await listTasks(paths)
+  task.blockers = assertBlockersValid(existing, input.blockers ?? [], id)
+  if (status === "in_progress") {
+    const blocked = formatBlockedError(id, existing, task.blockers)
+    if (blocked) fail(blocked)
   }
   await ensureDir(paths.tasksDir)
   await writeTask(task)
@@ -211,11 +241,22 @@ export async function createTask(
 }
 
 export async function editTask(paths: BoardPaths, id: string, patch: TaskPatch): Promise<Task> {
-  if (!patch.title && patch.description === undefined && !patch.agent && !patch.project) {
-    fail("Nothing to edit. Pass --title, --description, --agent, or --project.")
+  if (
+    !patch.title &&
+    patch.description === undefined &&
+    patch.type === undefined &&
+    !patch.agent &&
+    patch.effort === undefined &&
+    !patch.project &&
+    patch.blockers === undefined
+  ) {
+    fail("Nothing to edit. Pass --title, --description, --type, --agent, --effort, --project, or --blockers.")
   }
   const config = await loadConfig(paths)
   const task = await getTask(paths, id)
+  if (task.status === "done") {
+    fail("Cannot edit a done task. Move it out of done first.")
+  }
   if (patch.title !== undefined) {
     const title = patch.title.trim()
     if (!title) fail("Title is required.")
@@ -228,17 +269,27 @@ export async function editTask(paths: BoardPaths, id: string, patch: TaskPatch):
   if (patch.description !== undefined) {
     task.body = defaultBody(task.title, patch.description)
   }
+  if (patch.type !== undefined) {
+    task.type = normalizeTaskType(config, patch.type, NONE_TASK_TYPE)
+  }
   if (patch.agent !== undefined) {
     const agent = patch.agent.trim()
     requireAgent(config, agent)
     task.agent = agent
   }
+  if (patch.effort !== undefined) {
+    task.effort = normalizeEffort(patch.effort)
+  }
   if (patch.project !== undefined) {
-    const project = patch.project.trim()
+    const project = resolveProjectInput(config, patch.project, "")
     if (!(await isDirectory(resolve(project)))) {
       fail(`Project path does not exist or is not a directory: ${project}`)
     }
     task.project = project
+  }
+  if (patch.blockers !== undefined) {
+    const existing = await listTasks(paths)
+    task.blockers = assertBlockersValid(existing, patch.blockers, id)
   }
   task.updated = nowIso()
   await writeTask(task)

@@ -105,6 +105,18 @@ test("move to done only updates status", async () => {
   expect(moved.herdr.pane_id).toBeNull()
 })
 
+test("move in_progress appends effort to the pane command", async () => {
+  const { dir, paths } = await tempBoard()
+  const task = await createTask(paths, { title: "Hard", effort: "high" }, dir)
+  const { runner, calls } = mockHerdr()
+  await moveTask(paths, task.id, "in_progress", { runner })
+  expect(
+    calls.some(
+      (args) => args[0] === "pane" && args[1] === "run" && args[3] === "ccc --effort high",
+    ),
+  ).toBe(true)
+})
+
 test("move in_progress launches herdr and stores pane id", async () => {
   const { paths, task } = await tempBoard()
   const { runner, calls } = mockHerdr()
@@ -173,6 +185,20 @@ test("stale pane_id relaunches herdr", async () => {
   const moved = await moveTask(paths, task.id, "in_progress", { runner })
   expect(moved.herdr.pane_id).toBe("w1:p1")
   expect(calls.some((args) => args[0] === "workspace" && args[1] === "create")).toBe(true)
+})
+
+test("move in_progress is blocked by unfinished blockers", async () => {
+  const { dir, paths } = await tempBoard()
+  const blocker = await createTask(paths, { title: "Blocker" }, dir)
+  const blocked = await createTask(paths, { title: "Blocked", blockers: [blocker.id] }, dir)
+  await expect(moveTask(paths, blocked.id, "in_progress", { runner: mockHerdr().runner })).rejects.toThrow(
+    /blocked by/,
+  )
+  const loaded = await getTask(paths, blocked.id)
+  expect(loaded.status).toBe("backlog")
+  await moveTask(paths, blocker.id, "done")
+  const moved = await moveTask(paths, blocked.id, "in_progress", { runner: mockHerdr().runner })
+  expect(moved.status).toBe("in_progress")
 })
 
 test("bad lane is an error", async () => {

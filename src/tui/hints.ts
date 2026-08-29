@@ -37,6 +37,10 @@ function hintWidth(hint: Hint): number {
 
 export function hintsForTask(base: readonly Hint[], task: Task | null): Hint[] {
   const items = [...base]
+  if (task?.status === "done") {
+    const editIdx = items.findIndex((hint) => hint.action === "edit")
+    if (editIdx >= 0) items.splice(editIdx, 1)
+  }
   if (task?.status !== "done" || !hasHerdrLayout(task)) return items
   const close: Hint = { action: "close", key: "c" }
   const openIdx = items.findIndex((hint) => hint.action === "open")

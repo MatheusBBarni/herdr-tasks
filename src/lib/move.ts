@@ -9,7 +9,8 @@ import {
   type HerdrRunner,
 } from "./herdr.ts"
 import { resolveProjectPath, type BoardPaths } from "./root.ts"
-import { getTask, requireLane, saveTask, writeTask } from "./store.ts"
+import { formatBlockedError } from "./blockers.ts"
+import { getTask, listTasks, requireLane, saveTask, writeTask } from "./store.ts"
 import type { Lane, Task } from "./types.ts"
 
 export type MoveResult = {
@@ -46,6 +47,12 @@ export async function moveTaskDetailed(
 
   if (previous.status === lane && lane !== "in_progress") {
     return { task: previous }
+  }
+
+  if (lane === "in_progress" && previous.status !== "in_progress") {
+    const tasks = await listTasks(paths)
+    const blocked = formatBlockedError(previous.id, tasks, previous.blockers)
+    if (blocked) fail(blocked)
   }
 
   const next: Task = {

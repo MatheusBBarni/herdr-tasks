@@ -114,7 +114,7 @@ Authoritative APIs: the **opentui** skill. Do not invent components, hooks, or H
 - Human default: compact tables on stdout.
 - Agents: `--json` on stdout.
 - Diagnostics and errors on stderr.
-- Non-zero exit on: missing board, unknown id, bad lane, missing project path, unknown agent key.
+- Non-zero exit on: missing board, unknown id, bad lane, missing project path, unknown agent key, unknown type, unknown effort, unknown blocker, unfinished blockers on move to in_progress.
 - No TTY required for `list` / `show` / `move` / `path` / `root` / `doctor`.
 - Shared logic in `src/lib/*` — TUI and CLI must not diverge.
 
@@ -125,9 +125,9 @@ htasks init [--prefix dev] [--agent grok] [--project <path>]
 htasks board
 htasks list [--status <lane>] [--json]
 htasks show <id> [--json]
-htasks create --title T [--description D] [--agent A] [--project P] [--status backlog]
+htasks create --title T [--description D] [--type T] [--agent A] [--effort E] [--project P] [--status backlog] [--blockers id,id]
 htasks move <id> <lane>
-htasks edit <id> [--title T] [--description D] [--agent A] [--project P]
+htasks edit <id> [--title T] [--description D] [--type T] [--agent A] [--effort E] [--project P] [--blockers id,id]
 htasks path <id>
 htasks root
 htasks config get|set <key> [value]
@@ -162,17 +162,18 @@ Task `agent` stores the **map key** (e.g. `claude`), not the raw command. Unknow
 
 Shared hook. Do not invent Herdr APIs. Capture IDs from JSON.
 
-1. Write `status=in_progress`.
-2. `herdr` must be on PATH; on failure revert/keep prior status and print error.
-3. Resolve agent from config: `command` + `kind`.
-4. Create layout from `[herdr] behavior` (`workspace` default, or `tab` / `pane`).
-5. Parse JSON; save `workspace_id` + `pane_id`.
-6. Start `command` in that pane (project cwd). Register/detect with `kind` only if required. If `agent start` would ignore `command`, do not use that path.
-7. `safe-name` = slug(task id), `[a-z][a-z0-9_-]{0,31}`, unique.
-8. `herdr agent prompt …` with the first-prompt template from `htasks-prompt.md` (read the task file, follow the skill, `htasks move <id> done`).
-9. If Herdr server is down, start/attach once, retry create; surface stderr.
-10. Leaving `in_progress` does **not** kill Herdr in MVP.
-11. If `herdr.pane_id` already set, `move in_progress` only updates status (idempotent).
+1. If any `blockers` id is missing or not `done`, fail and do not change status.
+2. Write `status=in_progress`.
+3. `herdr` must be on PATH; on failure revert/keep prior status and print error.
+4. Resolve agent from config: `command` + `kind`.
+5. Create layout from `[herdr] behavior` (`workspace` default, or `tab` / `pane`).
+6. Parse JSON; save `workspace_id` + `pane_id`.
+7. Start `command` in that pane (project cwd), appending the task's effort flag for the agent `kind` when effort is set. Register/detect with `kind` only if required. If `agent start` would ignore `command`, do not use that path.
+8. `safe-name` = slug(task id), `[a-z][a-z0-9_-]{0,31}`, unique.
+9. `herdr agent prompt …` with the first-prompt template from `htasks-prompt.md` (read the task file, follow the skill, `htasks move <id> done`).
+10. If Herdr server is down, start/attach once, retry create; surface stderr.
+11. Leaving `in_progress` does **not** kill Herdr in MVP.
+12. If `herdr.pane_id` already set, `move in_progress` only updates status (idempotent).
 
 ## Project layout (target)
 
@@ -197,11 +198,11 @@ Ship `skills/htasks/SKILL.md` and copy it to `.herdr-tasks/skills/htasks/` on `i
 ## TUI (`htasks board`)
 
 - Columns: backlog / in_progress / done.
-- Card: id, title, agent key, project basename.
+- Card: id, title, type, agent key, project basename.
 - Space select; Left/Right or h/l move; Esc clear; mouse click + drag if possible.
 - n create, c close Herdr layout (done), e edit, s settings, Enter preview, o focus Herdr layout (in_progress), ? help, q / Ctrl+C quit (`renderer.destroy()`).
-- Form: Tab fields; Enter submit except in description (newline); Ctrl+Enter always submits; Esc cancel; title required; project path must exist; agent must be a config key.
-- Default project to cwd when inside a repo; default agent to `default_agent`.
+- Form: Tab fields; Enter submit except in description (newline) and blockers (toggle); Ctrl+Enter always submits; Esc cancel; title required; project path must exist (select from `[projects.*]` when present); agent must be a config key; type is a `task_types` key or none; effort is `low`/`medium`/`high`/`xhigh`/`max` or none and is applied when starting the agent; blockers is a select of other tasks.
+- Default project to cwd when inside a repo; default agent to `default_agent`; default type to `default_type`.
 
 ## Constraints
 

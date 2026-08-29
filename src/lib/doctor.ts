@@ -4,6 +4,7 @@ import { colorEnabled, paint } from "./color.ts"
 import { parseConfig } from "./config.ts"
 import { isDirectory, pathExists, readText } from "./fs.ts"
 import { defaultRunner, isServerRunning, type HerdrRunner } from "./herdr.ts"
+import { findProject, listedProjects } from "./projects.ts"
 import { findBoardRoot, packagedSkillPath, pathsFor } from "./root.ts"
 
 export type DoctorStatus = "ok" | "warn" | "fail"
@@ -190,14 +191,34 @@ export async function runDoctor(env: DoctorEnv = {}): Promise<DoctorReport> {
           }
         }
       }
+      const projects = listedProjects(config)
+      if (projects.length > 0) {
+        add({ id: "projects", status: "ok", message: `projects ${projects.map((project) => project.key).join(", ")}` })
+        for (const project of projects) {
+          if (await isDirectory(resolve(project.path))) {
+            add({
+              id: `project.${project.key}`,
+              status: "ok",
+              message: `${project.name} -> ${project.path}`,
+            })
+          } else {
+            add({
+              id: `project.${project.key}`,
+              status: "warn",
+              message: `${project.key} path does not exist: ${project.path}`,
+            })
+          }
+        }
+      }
       if (config.default_project.trim()) {
-        if (await isDirectory(resolve(config.default_project))) {
-          add({ id: "default_project", status: "ok", message: `default_project ${config.default_project}` })
+        const resolved = findProject(config, config.default_project)?.path ?? config.default_project
+        if (await isDirectory(resolve(resolved))) {
+          add({ id: "default_project", status: "ok", message: `default_project ${resolved}` })
         } else {
           add({
             id: "default_project",
             status: "warn",
-            message: `default_project does not exist: ${config.default_project}`,
+            message: `default_project does not exist: ${resolved}`,
           })
         }
       }

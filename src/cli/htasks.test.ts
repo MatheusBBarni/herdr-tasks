@@ -43,9 +43,10 @@ test("cli init, create, list json, show, move done", async () => {
 
   const list = await run(dir, ["list", "--json"])
   expect(list.code).toBe(0)
-  const tasks = JSON.parse(list.stdout) as Array<{ id: string; status: string }>
+  const tasks = JSON.parse(list.stdout) as Array<{ id: string; status: string; type: string }>
   expect(tasks[0]?.id).toBe("dev-1")
   expect(tasks[0]?.status).toBe("backlog")
+  expect(tasks[0]?.type).toBe("feat")
 
   const shown = await run(dir, ["show", "dev-1", "--json"])
   expect(shown.code).toBe(0)
@@ -91,6 +92,93 @@ test("cli config set and get theme", async () => {
   const bad = await run(dir, ["config", "set", "theme", "solarized"])
   expect(bad.code).not.toBe(0)
   expect(bad.stderr).toContain("Unknown theme")
+})
+
+test("cli edit rejects done tasks", async () => {
+  const dir = await tempDir()
+  expect((await run(dir, ["init", "--project", dir])).code).toBe(0)
+  const created = await run(dir, ["create", "--title", "Shipped", "--status", "done"])
+  expect(created.code).toBe(0)
+  const edited = await run(dir, ["edit", created.stdout.trim(), "--title", "Nope"])
+  expect(edited.code).not.toBe(0)
+  expect(edited.stderr).toContain("Cannot edit a done task")
+})
+
+test("cli create and edit --effort", async () => {
+  const dir = await tempDir()
+  expect((await run(dir, ["init", "--project", dir])).code).toBe(0)
+  const created = await run(dir, ["create", "--title", "Hard", "--effort", "high"])
+  expect(created.code).toBe(0)
+  const shown = await run(dir, ["show", created.stdout.trim(), "--json"])
+  expect(JSON.parse(shown.stdout).effort).toBe("high")
+  const edited = await run(dir, ["edit", created.stdout.trim(), "--effort", "low"])
+  expect(edited.code).toBe(0)
+  const again = await run(dir, ["show", created.stdout.trim(), "--json"])
+  expect(JSON.parse(again.stdout).effort).toBe("low")
+  const cleared = await run(dir, ["edit", created.stdout.trim(), "--effort", "none"])
+  expect(cleared.code).toBe(0)
+  expect(JSON.parse((await run(dir, ["show", created.stdout.trim(), "--json"])).stdout).effort).toBe("")
+  const bad = await run(dir, ["create", "--title", "Nope", "--effort", "turbo"])
+  expect(bad.code).not.toBe(0)
+  expect(bad.stderr).toContain("Unknown effort")
+})
+
+test("cli create and edit --type", async () => {
+  const dir = await tempDir()
+  expect((await run(dir, ["init", "--project", dir])).code).toBe(0)
+  const created = await run(dir, ["create", "--title", "Crash", "--type", "bug"])
+  expect(created.code).toBe(0)
+  const shown = await run(dir, ["show", created.stdout.trim(), "--json"])
+  expect(JSON.parse(shown.stdout).type).toBe("bug")
+  const edited = await run(dir, ["edit", created.stdout.trim(), "--type", "fix"])
+  expect(edited.code).toBe(0)
+  const again = await run(dir, ["show", created.stdout.trim(), "--json"])
+  expect(JSON.parse(again.stdout).type).toBe("fix")
+  const bad = await run(dir, ["create", "--title", "Nope", "--type", "epic"])
+  expect(bad.code).not.toBe(0)
+  expect(bad.stderr).toContain("Unknown type")
+})
+
+test("cli create and edit --blockers", async () => {
+  const dir = await tempDir()
+  expect((await run(dir, ["init", "--project", dir])).code).toBe(0)
+  expect((await run(dir, ["create", "--title", "First"])).code).toBe(0)
+  const created = await run(dir, ["create", "--title", "Second", "--blockers", "dev-1"])
+  expect(created.code).toBe(0)
+  const shown = await run(dir, ["show", created.stdout.trim(), "--json"])
+  expect(JSON.parse(shown.stdout).blockers).toEqual(["dev-1"])
+  const blocked = await run(dir, ["move", created.stdout.trim(), "in_progress"])
+  expect(blocked.code).not.toBe(0)
+  expect(blocked.stderr).toContain("blocked by")
+  const cleared = await run(dir, ["edit", created.stdout.trim(), "--blockers", "none"])
+  expect(cleared.code).toBe(0)
+  const again = await run(dir, ["show", created.stdout.trim(), "--json"])
+  expect(JSON.parse(again.stdout).blockers).toEqual([])
+  const missing = await run(dir, ["create", "--title", "Nope", "--blockers", "dev-99"])
+  expect(missing.code).not.toBe(0)
+  expect(missing.stderr).toContain("Unknown blocker")
+})
+
+test("cli create --project accepts a config key", async () => {
+  const dir = await tempDir()
+  expect((await run(dir, ["init", "--project", dir])).code).toBe(0)
+  const configPath = join(dir, ".herdr-tasks/config.toml")
+  const text = await Bun.file(configPath).text()
+  await Bun.write(
+    configPath,
+    `${text}
+[projects.herdr-tasks]
+name = "herdr-tasks"
+path = ${JSON.stringify(dir)}
+`,
+  )
+  const created = await run(dir, ["create", "--title", "Keyed", "--project", "herdr-tasks"])
+  expect(created.code).toBe(0)
+  const shown = await run(dir, ["show", created.stdout.trim(), "--json"])
+  expect(JSON.parse(shown.stdout).project).toBe(dir)
+  const bad = await run(dir, ["create", "--title", "Nope", "--project", "nope"])
+  expect(bad.code).not.toBe(0)
+  expect(bad.stderr).toContain("Unknown project")
 })
 
 test("cli doctor json reports checks", async () => {
