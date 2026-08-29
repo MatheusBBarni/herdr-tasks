@@ -24,7 +24,6 @@ test("fitHints keeps primary actions at 80 columns", () => {
     "move",
     "new",
     "edit",
-    "open",
     "set",
     "quit",
   ])
@@ -35,13 +34,11 @@ test("fitHints drops help then preview then open on a 60-column floor", () => {
     "select",
     "move",
     "new",
-    "edit",
     "set",
     "quit",
   ])
   expect(fitHints(HINTS_NARROW, 60).map((hint) => hint.action)).toEqual([
     "lane",
-    "card",
     "select",
     "new",
     "set",
@@ -70,7 +67,6 @@ test("hintsForTask shows close instead of open on a done card with a layout", ()
     "select",
     "move",
     "new",
-    "preview",
     "close",
     "set",
     "quit",
@@ -79,7 +75,6 @@ test("hintsForTask shows close instead of open on a done card with a layout", ()
     "select",
     "move",
     "new",
-    "close",
     "set",
     "quit",
   ])

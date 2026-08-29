@@ -9,6 +9,7 @@ import { closeTaskLayout, focusTaskLayout, hasHerdrLayout } from "../lib/herdr.t
 import { completeInProgressLaunch, moveTask } from "../lib/move.ts"
 import type { BoardPaths } from "../lib/root.ts"
 import { createTask, editTask, loadBoard, saveTask, writeTask } from "../lib/store.ts"
+import { basename } from "../lib/text.ts"
 import { DEFAULT_THEME, THEMES, type ThemeName } from "../lib/themes.ts"
 import { LANES, type Config, type Lane, type Task } from "../lib/types.ts"
 import { watchTasks } from "../lib/watch.ts"
@@ -501,6 +502,9 @@ export function App(props: AppProps) {
         <Board
           tasks={tasks}
           width={width}
+          boardName={basename(props.paths.boardRoot)}
+          prefix={config.prefix}
+          defaultProject={config.default_project}
           singlePane={singlePane}
           focusedLane={focusedLane}
           focusedId={focusedId}

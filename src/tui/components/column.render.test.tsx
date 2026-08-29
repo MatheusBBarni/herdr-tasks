@@ -47,6 +47,7 @@ async function renderColumn(focusedId: string) {
         selectedId={null}
         launchingIds={new Set()}
         agentStatuses={new Map()}
+        defaultProject="/Users/matheusbbarni/projects/herdr-tasks"
         onFocusTask={() => {}}
         onDrop={() => {}}
       />
@@ -71,4 +72,33 @@ test("lane scrolls so a focused card below the fold is visible", async () => {
   const frame = await renderColumn("dev-12")
   expect(frame).toContain("LAST-CARD")
   expect(frame).not.toContain("FIRST-CARD")
+})
+
+test("empty lane has a heading and no empty placeholder", async () => {
+  testSetup = await testRender(
+    <box width={40} height={10}>
+      <Column
+        lane="backlog"
+        tasks={[]}
+        width={40}
+        focused
+        focusedId={null}
+        selectedId={null}
+        launchingIds={new Set()}
+        agentStatuses={new Map()}
+        defaultProject="/Users/matheusbbarni/projects/herdr-tasks"
+        onFocusTask={() => {}}
+        onDrop={() => {}}
+      />
+    </box>,
+    { width: 40, height: 10 },
+  )
+  await testSetup.renderOnce()
+  await act(async () => {
+    await Bun.sleep(40)
+  })
+  await testSetup.renderOnce()
+  const frame = testSetup.captureCharFrame()
+  expect(frame).toContain("BACKLOG · 0")
+  expect(frame).not.toContain("empty")
 })

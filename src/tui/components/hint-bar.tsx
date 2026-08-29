@@ -12,14 +12,17 @@ export function HintBar(props: { items: readonly Hint[] }) {
         {props.items.flatMap((hint, i) => [
           i > 0 ? (
             <span key={`gap-${hint.action}`} fg={muted}>
-              {"  "}
+              {" "}
             </span>
           ) : null,
-          <span key={`action-${hint.action}`} fg={muted}>
-            {`${hint.action}: `}
+          <span key={`open-${hint.action}`} fg={muted}>
+            {"[ "}
           </span>,
           <span key={`key-${hint.action}`} fg={keyFg}>
             <strong>{hint.key}</strong>
+          </span>,
+          <span key={`close-${hint.action}`} fg={muted}>
+            {` ${hint.action} ]`}
           </span>,
         ])}
       </text>

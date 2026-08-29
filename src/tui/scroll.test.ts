@@ -11,14 +11,14 @@ test("scrollOffsetToReveal keeps an on-screen item put", () => {
       index: 1,
       itemHeight: CARD_HEIGHT,
       gap: CARD_GAP,
-      viewportHeight: 10,
+      viewportHeight: 20,
       currentOffset: 0,
     }),
   ).toBe(0)
 })
 
 test("scrollOffsetToReveal scrolls down just enough to show the item", () => {
-  // index 5 → top 15, bottom 17; viewport 10 → offset 7
+  // index 5 → top 30, bottom 35; viewport 10 → offset 25
   expect(
     scrollOffsetToReveal({
       index: 5,
@@ -27,7 +27,7 @@ test("scrollOffsetToReveal scrolls down just enough to show the item", () => {
       viewportHeight: 10,
       currentOffset: 0,
     }),
-  ).toBe(7)
+  ).toBe(25)
 })
 
 test("scrollOffsetToReveal scrolls up to the item top", () => {
