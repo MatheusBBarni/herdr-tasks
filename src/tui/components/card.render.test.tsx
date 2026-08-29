@@ -23,6 +23,7 @@ const task: Task = {
   updated: "",
   herdr: { workspace_id: "wP", pane_id: "wP:pV", agent_name: null },
   blockers: [],
+  worktree: false,
   body: "",
   filePath: "",
 }

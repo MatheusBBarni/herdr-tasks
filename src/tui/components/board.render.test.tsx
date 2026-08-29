@@ -22,6 +22,7 @@ function task(partial: Partial<Task> & Pick<Task, "id" | "status" | "title">): T
     updated: "",
     herdr: { workspace_id: null, pane_id: null, agent_name: null },
     blockers: [],
+    worktree: false,
     body: "",
     filePath: "",
     ...partial,

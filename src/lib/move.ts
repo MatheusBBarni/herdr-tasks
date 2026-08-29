@@ -100,6 +100,7 @@ export async function completeInProgressLaunch(
     skillPath: paths.skillPath,
     behavior: config.herdr_behavior,
     runner: opts.runner,
+    boardRoot: paths.boardRoot,
   })
   task.project = project
   task.herdr = launched.herdr

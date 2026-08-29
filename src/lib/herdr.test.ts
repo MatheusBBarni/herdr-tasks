@@ -8,6 +8,9 @@ import {
   herdrCloseArgs,
   herdrCreateArgs,
   herdrFocusArgs,
+  parseWorktreeCreate,
+  parseWorktreeList,
+  worktreeCreateArgs,
   joinPaneStatuses,
   listAgentStatuses,
   parseAgentStatus,
@@ -30,6 +33,7 @@ const sample: Task = {
   updated: "",
   herdr: { workspace_id: null, pane_id: null, agent_name: null },
   blockers: [],
+  worktree: false,
   body: "",
   filePath: "/repo/.herdr-tasks/tasks/dev-1.md",
 }
@@ -59,6 +63,48 @@ test("parse tab create and pane split JSON", () => {
   expect(
     parseCreatedLayout({ result: { pane: { pane_id: "w9:p3" } } }, "pane"),
   ).toEqual({ workspace_id: "w9", pane_id: "w9:p3" })
+})
+
+test("worktreeCreateArgs uses type/id branch and never mixes --workspace with --cwd", () => {
+  expect(worktreeCreateArgs({ id: "dev-11", type: "feat", project: "/repo" })).toEqual([
+    "worktree",
+    "create",
+    "--cwd",
+    "/repo",
+    "--branch",
+    "feat/dev-11",
+    "--label",
+    "dev-11",
+    "--no-focus",
+  ])
+  expect(worktreeCreateArgs({ id: "dev-11", type: "feat", project: "/repo" })).not.toContain(
+    "--workspace",
+  )
+})
+
+test("parseWorktreeList and parseWorktreeCreate read herdr JSON", () => {
+  expect(
+    parseWorktreeList({
+      result: {
+        worktrees: [
+          { branch: "feat/dev-11", path: "/tmp/wt", open_workspace_id: "w9" },
+          { branch: "main", path: "/repo" },
+        ],
+      },
+    }),
+  ).toEqual([
+    { branch: "feat/dev-11", path: "/tmp/wt", open_workspace_id: "w9" },
+    { branch: "main", path: "/repo" },
+  ])
+  expect(
+    parseWorktreeCreate({
+      result: {
+        worktree: { path: "/tmp/wt", branch: "feat/dev-11" },
+        workspace: { workspace_id: "wWT" },
+        root_pane: { pane_id: "wWT:p1" },
+      },
+    }),
+  ).toEqual({ path: "/tmp/wt", workspace_id: "wWT", pane_id: "wWT:p1" })
 })
 
 test("herdrCreateArgs follows herdr_behavior", () => {

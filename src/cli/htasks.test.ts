@@ -181,6 +181,23 @@ path = ${JSON.stringify(dir)}
   expect(bad.stderr).toContain("Unknown project")
 })
 
+test("cli create and edit --worktree", async () => {
+  const dir = await tempDir()
+  expect((await run(dir, ["init", "--project", dir])).code).toBe(0)
+  const created = await run(dir, ["create", "--title", "Isolated", "--worktree", "yes"])
+  expect(created.code).toBe(0)
+  const shown = await run(dir, ["show", created.stdout.trim(), "--json"])
+  expect(JSON.parse(shown.stdout).worktree).toBe(true)
+  const human = await run(dir, ["show", created.stdout.trim()])
+  expect(human.stdout).toContain("worktree yes")
+  const edited = await run(dir, ["edit", created.stdout.trim(), "--worktree", "no"])
+  expect(edited.code).toBe(0)
+  expect(JSON.parse((await run(dir, ["show", created.stdout.trim(), "--json"])).stdout).worktree).toBe(false)
+  const bad = await run(dir, ["create", "--title", "Nope", "--worktree", "maybe"])
+  expect(bad.code).not.toBe(0)
+  expect(bad.stderr).toContain("Unknown worktree")
+})
+
 test("cli doctor json reports checks", async () => {
   const dir = await tempDir()
   const doc = await run(dir, ["doctor", "--json"])

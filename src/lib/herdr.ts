@@ -1,6 +1,7 @@
 import { resolveKind } from "./agents.ts"
 import { commandWithEffort } from "./effort.ts"
 import type { AgentEntry, HerdrBehavior, Task } from "./types.ts"
+import { linkBoardIntoWorktree, worktreeBranch } from "./worktree.ts"
 
 export type HerdrRunResult = {
   code: number
@@ -495,6 +496,99 @@ export async function closeTaskLayout(opts: {
   return { noun, id }
 }
 
+export type WorktreeInfo = {
+  branch: string
+  path: string
+  open_workspace_id?: string
+}
+
+export type WorktreeCreateResult = {
+  path: string
+  workspace_id?: string
+  pane_id?: string
+}
+
+export type WorktreeEnsureResult = WorktreeCreateResult & {
+  created: boolean
+}
+
+export function worktreeCreateArgs(task: { id: string; type: string; project: string }): string[] {
+  // herdr treats --workspace and --cwd as mutually exclusive. Always pass the
+  // task project as --cwd; never inherit HERDR_WORKSPACE_ID from the board pane.
+  return [
+    "worktree",
+    "create",
+    "--cwd",
+    task.project,
+    "--branch",
+    worktreeBranch(task.type, task.id),
+    "--label",
+    task.id,
+    "--no-focus",
+  ]
+}
+
+export function parseWorktreeList(payload: unknown): WorktreeInfo[] {
+  const root = asRecord(payload) ?? {}
+  const result = asRecord(root.result) ?? root
+  const list = result.worktrees
+  if (!Array.isArray(list)) return []
+  const out: WorktreeInfo[] = []
+  for (const item of list) {
+    const rec = asRecord(item)
+    if (!rec) continue
+    const branch = pickString(rec.branch)
+    const path = pickString(rec.path)
+    if (!branch || !path) continue
+    out.push({
+      branch,
+      path,
+      open_workspace_id: pickString(rec.open_workspace_id),
+    })
+  }
+  return out
+}
+
+export function parseWorktreeCreate(payload: unknown): WorktreeCreateResult {
+  const root = asRecord(payload) ?? {}
+  const result = asRecord(root.result) ?? root
+  const worktree = asRecord(result.worktree) ?? asRecord(root.worktree)
+  const path = pickString(worktree?.path, result.path, root.path)
+  if (!path) {
+    throw new HerdrError(
+      `herdr worktree create did not return a path. Got: ${JSON.stringify(payload).slice(0, 500)}`,
+    )
+  }
+  const workspaceRec = asRecord(result.workspace)
+  const rootPane = asRecord(result.root_pane) ?? asRecord(root.root_pane)
+  const paneRec = asRecord(result.pane)
+  const pane_id = pickString(rootPane?.pane_id, paneRec?.pane_id, result.pane_id, root.pane_id)
+  const workspace_id = pickString(
+    workspaceRec?.workspace_id,
+    typeof result.workspace === "string" ? result.workspace : undefined,
+    result.workspace_id,
+    root.workspace_id,
+    pane_id?.includes(":") ? pane_id.slice(0, pane_id.indexOf(":")) : undefined,
+  )
+  return { path, workspace_id, pane_id }
+}
+
+export async function ensureTaskWorktree(opts: {
+  bin: string
+  task: Pick<Task, "id" | "type" | "project">
+  runner?: HerdrRunner
+}): Promise<WorktreeEnsureResult> {
+  const runner = opts.runner ?? defaultRunner
+  const { bin, task } = opts
+  const branch = worktreeBranch(task.type, task.id)
+  const listed = parseWorktreeList(await runJson(runner, bin, ["worktree", "list", "--cwd", task.project]))
+  const existing = listed.find((item) => item.branch === branch)
+  if (existing) return { path: existing.path, created: false }
+
+  const created = parseWorktreeCreate(await runJson(runner, bin, worktreeCreateArgs(task)))
+  return { ...created, created: true }
+}
+
 export function firstPrompt(task: Task, skillPath: string, behavior: HerdrBehavior = "workspace"): string {
   const place = layoutNoun(behavior)
   return [
@@ -535,6 +629,7 @@ export async function launchInProgress(opts: {
   runner?: HerdrRunner
   env?: NodeJS.Dict<string | undefined>
   detectTimeoutMs?: number
+  boardRoot?: string
 }): Promise<LaunchResult> {
   const runner = opts.runner ?? defaultRunner
   const env = opts.env ?? process.env
@@ -547,16 +642,40 @@ export async function launchInProgress(opts: {
     throw new HerdrError(err instanceof Error ? err.message : String(err))
   }
 
-  const createArgs = herdrCreateArgs(behavior, task, env)
-  let created: WorkspaceCreateResult
-  try {
-    created = parseCreatedLayout(await runJson(runner, bin, createArgs), behavior)
-  } catch (err) {
-    if (err instanceof HerdrError && /not running|server/i.test(err.message + err.stderr)) {
-      await ensureHerdrServer(bin, runner)
+  let layoutTask = { id: task.id, project: task.project }
+  let created: WorkspaceCreateResult | undefined
+  if (task.worktree) {
+    const worktree = await ensureTaskWorktree({ bin, task, runner })
+    layoutTask = { id: task.id, project: worktree.path }
+    if (opts.boardRoot) {
+      await linkBoardIntoWorktree(worktree.path, opts.boardRoot)
+    }
+    const extraId = worktree.workspace_id
+    const callerWs = env.HERDR_WORKSPACE_ID
+    if (extraId && extraId !== callerWs) {
+      if (behavior === "workspace" && worktree.pane_id) {
+        created = { workspace_id: extraId, pane_id: worktree.pane_id }
+      } else {
+        try {
+          await runJson(runner, bin, ["workspace", "close", extraId])
+        } catch {
+          // keep the checkout even if the extra workspace cannot be closed
+        }
+      }
+    }
+  }
+
+  const createArgs = herdrCreateArgs(behavior, layoutTask, env)
+  if (!created) {
+    try {
       created = parseCreatedLayout(await runJson(runner, bin, createArgs), behavior)
-    } else {
-      throw err
+    } catch (err) {
+      if (err instanceof HerdrError && /not running|server/i.test(err.message + err.stderr)) {
+        await ensureHerdrServer(bin, runner)
+        created = parseCreatedLayout(await runJson(runner, bin, createArgs), behavior)
+      } else {
+        throw err
+      }
     }
   }
 
@@ -595,7 +714,7 @@ export async function launchInProgress(opts: {
 
   await runner(bin, ["agent", "wait", created.pane_id, "--until", "idle", "--timeout", String(detectMs)])
 
-  const promptText = firstPrompt(task, opts.skillPath, behavior)
+  const promptText = firstPrompt({ ...task, project: layoutTask.project }, opts.skillPath, behavior)
   const prompt = await runner(bin, ["agent", "prompt", created.pane_id, promptText])
   if (prompt.code !== 0) {
     const typed = await runner(bin, ["agent", "send-keys", created.pane_id, "enter"])

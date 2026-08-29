@@ -135,6 +135,7 @@ test("task markdown roundtrip", () => {
     updated: "2026-08-28T17:00:00.000Z",
     herdr: { workspace_id: null, pane_id: null, agent_name: null },
     blockers: [],
+    worktree: false,
     body: "# Add login\n\nDescription.",
     filePath: "/tmp/dev-1.md",
   })
@@ -160,6 +161,7 @@ test("task markdown with blockers roundtrips", () => {
     updated: "2026-08-28T17:00:00.000Z",
     herdr: { workspace_id: null, pane_id: null, agent_name: null },
     blockers: ["dev-1"],
+    worktree: false,
     body: "# Blocked",
     filePath: "/tmp/dev-2.md",
   })
@@ -240,6 +242,44 @@ test("create and edit effort", async () => {
   const cleared = await editTask(paths, task.id, { effort: "none" })
   expect(cleared.effort).toBe("")
   expect(await Bun.file(cleared.filePath).text()).not.toContain("effort:")
+})
+
+test("create and edit worktree", async () => {
+  const { dir, paths } = await tempBoard()
+  const task = await createTask(paths, { title: "Isolated", worktree: true }, dir)
+  expect(task.worktree).toBe(true)
+  expect(await Bun.file(task.filePath).text()).toContain("worktree: true")
+  const cleared = await editTask(paths, task.id, { worktree: false })
+  expect(cleared.worktree).toBe(false)
+  expect(await Bun.file(cleared.filePath).text()).not.toContain("worktree:")
+})
+
+test("unknown worktree is an error", async () => {
+  const { dir, paths } = await tempBoard()
+  await expect(createTask(paths, { title: "X", worktree: "maybe" }, dir)).rejects.toThrow(/Unknown worktree/)
+})
+
+test("task markdown without worktree parses as false", () => {
+  const parsed = parseTaskMarkdown(
+    `---
+id: dev-2
+title: Untyped
+status: backlog
+agent: claude
+project: /tmp/repo
+created: 2026-08-28T17:00:00.000Z
+updated: 2026-08-28T17:00:00.000Z
+herdr:
+  workspace_id: null
+  pane_id: null
+  agent_name: null
+---
+
+# Untyped
+`,
+    "/tmp/dev-2.md",
+  )
+  expect(parsed.worktree).toBe(false)
 })
 
 test("unknown effort is an error", async () => {
