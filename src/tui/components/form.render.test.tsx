@@ -59,6 +59,7 @@ test("create form is a compact centered card at 80x24", async () => {
         agent: "pi",
         effort: "",
         project: "/Users/me/herdr-tasks",
+        worktree: false,
         blockers: [],
       }}
       typeKeys={["feat", "fix", "bug"]}
@@ -77,6 +78,7 @@ test("create form is a compact centered card at 80x24", async () => {
   expect(frame).toContain("effort")
   expect(frame).toContain("agent")
   expect(frame).toContain("project")
+  expect(frame).toContain("worktree")
   expect(frame).toContain("blockers")
   expect(frame).toContain("tab next")
   expect(frame).toContain("^enter save")
@@ -89,12 +91,14 @@ test("create form is a compact centered card at 80x24", async () => {
   const effortLine = lines.findIndex((line) => /\beffort\b/.test(line))
   const agentLine = lines.findIndex((line) => line.includes("agent"))
   const projectLine = lines.findIndex((line) => line.includes("project"))
+  const worktreeLine = lines.findIndex((line) => line.includes("worktree"))
   const blockerLine = lines.findIndex((line) => line.includes("blockers"))
   expect(typeLine).toBeGreaterThan(0)
   expect(effortLine).toBe(typeLine)
   expect(agentLine).toBe(typeLine)
   expect(projectLine).toBe(agentLine)
-  expect(blockerLine).toBeGreaterThan(projectLine)
+  expect(worktreeLine).toBeGreaterThan(projectLine)
+  expect(blockerLine).toBe(worktreeLine)
 })
 
 test("edit form titles the dialog with the task id", async () => {
@@ -109,6 +113,7 @@ test("edit form titles the dialog with the task id", async () => {
         agent: "pi",
         effort: "high",
         project: "/tmp",
+        worktree: false,
         blockers: ["dev-1"],
       }}
       typeKeys={["feat", "fix"]}
@@ -136,6 +141,7 @@ test("type, agent, and project stack on a 60-column floor", async () => {
         agent: "pi",
         effort: "",
         project: "/Users/me/herdr-tasks",
+        worktree: false,
         blockers: [],
       }}
       typeKeys={["feat", "fix"]}
@@ -166,6 +172,7 @@ const formProps = {
     agent: "pi",
     effort: "",
     project: "/tmp",
+    worktree: false,
     blockers: [] as string[],
   },
   typeKeys: ["feat", "fix", "bug"],
@@ -194,6 +201,7 @@ test("clicking save submits the form", async () => {
       agent: "pi",
       effort: "",
       project: "/tmp",
+      worktree: false,
       blockers: [],
     },
   ])
@@ -244,6 +252,7 @@ test("project field is a select when projects are listed", async () => {
         agent: "pi",
         effort: "",
         project: "/repo/htasks",
+        worktree: false,
         blockers: [],
       }}
       typeKeys={["feat", "fix"]}

@@ -40,9 +40,9 @@ htasks init [--prefix dev] [--agent grok] [--project <path>]
 htasks board
 htasks list [--status <lane>] [--json]
 htasks show <id> [--json]
-htasks create --title T [--description D] [--type T] [--agent A] [--effort E] [--project <path|key>] [--status backlog] [--blockers id,id]
+htasks create --title T [--description D] [--type T] [--agent A] [--effort E] [--project <path|key>] [--status backlog] [--blockers id,id] [--worktree yes|no]
 htasks move <id> <lane>
-htasks edit <id> [--title T] [--description D] [--type T] [--agent A] [--effort E] [--project <path|key>] [--blockers id,id]
+htasks edit <id> [--title T] [--description D] [--type T] [--agent A] [--effort E] [--project <path|key>] [--blockers id,id] [--worktree yes|no]
 htasks path <id>
 htasks root
 htasks config get|set <key> [value]
@@ -159,12 +159,12 @@ Lanes: `backlog` | `in_progress` | `done`
 
 ## TUI (`htasks board`)
 
-- Fields: title, description, type (from config `task_types`), agent (from config map), effort (`low`/`medium`/`high`/`xhigh`/`max` or none), project path (select from `[projects.*]` when present, else text), blockers (select of other task ids)
+- Fields: title, description, type (from config `task_types`), agent (from config map), effort (`low`/`medium`/`high`/`xhigh`/`max` or none), project path (select from `[projects.*]` when present, else text), worktree (Yes/No, default No), blockers (select of other task ids)
 - Save → `.herdr-tasks/tasks/<prefix>-<next_id>.md`, bump `next_id`
 - 3 columns; card: id, title, type, agent key, project basename
 - Space select; Left/Right or h/l move; Esc clear; mouse click + drag
 - n create, c close Herdr layout (done), e edit, s settings, Enter preview, o focus Herdr layout (in_progress), ? help, q / Ctrl+C quit (destroy renderer)
-- Form: Tab fields; Enter submit except in description (newline) and blockers (toggle); Ctrl+Enter always submits; Esc cancel; title required; project path must exist (select from `[projects.*]` when present); agent must be a config key; effort is applied when starting the agent; blockers is a select of other tasks
+- Form: Tab fields; Enter submit except in description (newline) and blockers (toggle); Ctrl+Enter always submits; Esc cancel; title required; project path must exist (select from `[projects.*]` when present); agent must be a config key; effort is applied when starting the agent; worktree is Yes/No (default No); blockers is a select of other tasks
 - Default project to cwd when inside a repo
 - Default agent to `default_agent`
 - Watch `.herdr-tasks/tasks` so CLI moves refresh the board
@@ -176,7 +176,7 @@ Lanes: `backlog` | `in_progress` | `done`
 2. Write `status=in_progress`
 3. `herdr` must be on PATH; on failure revert/keep prior status and print error
 4. Resolve agent from config: `command` + `kind`
-5. Create layout from `[herdr] behavior` (`workspace` default, or `tab` / `pane`).
+5. If worktree is yes, create a Herdr git worktree on `<type>/<id>` (e.g. `feat/dev-11`) then create layout from `[herdr] behavior` (`workspace` default, or `tab` / `pane`) with `--cwd` of that checkout. Otherwise create layout in the task project.
 6. Parse JSON; save `workspace_id` + `pane_id`
 7. Start `command` in that pane (project cwd), appending the task's effort flag for the agent `kind` when effort is set. Then register/detect with herdr using `kind` if needed.
 8. `safe-name` = slug(task id), `[a-z][a-z0-9_-]{0,31}`, unique
@@ -194,7 +194,7 @@ Lanes: `backlog` | `in_progress` | `done`
 - Human: compact tables. Agents: `--json`
 - `move` updates status + updated
 - No TTY required for list/show/move/path
-- Non-zero exit on missing board, unknown id, bad lane, missing project, unknown agent key, unknown type, unknown effort, unknown blocker, unfinished blockers on move to in_progress
+- Non-zero exit on missing board, unknown id, bad lane, missing project, unknown agent key, unknown type, unknown effort, unknown worktree, unknown blocker, unfinished blockers on move to in_progress
 - Shared lib for TUI and CLI (`src/lib/*`)
 
 ## Agent skill
@@ -203,7 +203,7 @@ Lanes: `backlog` | `in_progress` | `done`
 
 - Use only `htasks`. Do not edit `.herdr-tasks/tasks/*.md` by hand
 - `htasks root` / `htasks list --json` / `htasks show <id> --json`
-- Create: `htasks create --title T [--description D] [--type T] [--agent A] [--effort E] [--project P] [--status backlog] [--blockers id,id]`
+- Create: `htasks create --title T [--description D] [--type T] [--agent A] [--effort E] [--project P] [--status backlog] [--blockers id,id] [--worktree yes|no]`
 - Start work: `htasks move <id> in_progress`
 - Finish: `htasks move <id> done`
 - Do not create extra tasks unless asked

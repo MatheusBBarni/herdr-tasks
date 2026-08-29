@@ -114,7 +114,7 @@ Authoritative APIs: the **opentui** skill. Do not invent components, hooks, or H
 - Human default: compact tables on stdout.
 - Agents: `--json` on stdout.
 - Diagnostics and errors on stderr.
-- Non-zero exit on: missing board, unknown id, bad lane, missing project path, unknown agent key, unknown type, unknown effort, unknown blocker, unfinished blockers on move to in_progress.
+- Non-zero exit on: missing board, unknown id, bad lane, missing project path, unknown agent key, unknown type, unknown effort, unknown worktree, unknown blocker, unfinished blockers on move to in_progress.
 - No TTY required for `list` / `show` / `move` / `path` / `root` / `doctor`.
 - Shared logic in `src/lib/*` — TUI and CLI must not diverge.
 
@@ -125,9 +125,9 @@ htasks init [--prefix dev] [--agent grok] [--project <path>]
 htasks board
 htasks list [--status <lane>] [--json]
 htasks show <id> [--json]
-htasks create --title T [--description D] [--type T] [--agent A] [--effort E] [--project P] [--status backlog] [--blockers id,id]
+htasks create --title T [--description D] [--type T] [--agent A] [--effort E] [--project P] [--status backlog] [--blockers id,id] [--worktree yes|no]
 htasks move <id> <lane>
-htasks edit <id> [--title T] [--description D] [--type T] [--agent A] [--effort E] [--project P] [--blockers id,id]
+htasks edit <id> [--title T] [--description D] [--type T] [--agent A] [--effort E] [--project P] [--blockers id,id] [--worktree yes|no]
 htasks path <id>
 htasks root
 htasks config get|set <key> [value]
@@ -166,7 +166,7 @@ Shared hook. Do not invent Herdr APIs. Capture IDs from JSON.
 2. Write `status=in_progress`.
 3. `herdr` must be on PATH; on failure revert/keep prior status and print error.
 4. Resolve agent from config: `command` + `kind`.
-5. Create layout from `[herdr] behavior` (`workspace` default, or `tab` / `pane`).
+5. If `worktree` is yes, `herdr worktree create --cwd <project> --branch <type>/<id>` (e.g. `feat/dev-11`), then create layout from `[herdr] behavior` inside that checkout (`workspace` default, or `tab` / `pane`). Otherwise create layout in the task project.
 6. Parse JSON; save `workspace_id` + `pane_id`.
 7. Start `command` in that pane (project cwd), appending the task's effort flag for the agent `kind` when effort is set. Register/detect with `kind` only if required. If `agent start` would ignore `command`, do not use that path.
 8. `safe-name` = slug(task id), `[a-z][a-z0-9_-]{0,31}`, unique.
@@ -201,7 +201,7 @@ Ship `skills/htasks/SKILL.md` and copy it to `.herdr-tasks/skills/htasks/` on `i
 - Card: id, title, type, agent key, project basename.
 - Space select; Left/Right or h/l move; Esc clear; mouse click + drag if possible.
 - n create, c close Herdr layout (done), e edit, s settings, Enter preview, o focus Herdr layout (in_progress), ? help, q / Ctrl+C quit (`renderer.destroy()`).
-- Form: Tab fields; Enter submit except in description (newline) and blockers (toggle); Ctrl+Enter always submits; Esc cancel; title required; project path must exist (select from `[projects.*]` when present); agent must be a config key; type is a `task_types` key or none; effort is `low`/`medium`/`high`/`xhigh`/`max` or none and is applied when starting the agent; blockers is a select of other tasks.
+- Form: Tab fields; Enter submit except in description (newline) and blockers (toggle); Ctrl+Enter always submits; Esc cancel; title required; project path must exist (select from `[projects.*]` when present); agent must be a config key; type is a `task_types` key or none; effort is `low`/`medium`/`high`/`xhigh`/`max` or none and is applied when starting the agent; worktree is Yes/No (default No); blockers is a select of other tasks.
 - Default project to cwd when inside a repo; default agent to `default_agent`; default type to `default_type`.
 
 ## Constraints

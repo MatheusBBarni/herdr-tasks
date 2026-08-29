@@ -53,6 +53,7 @@ export type Task = {
   updated: string
   herdr: HerdrMeta
   blockers: string[]
+  worktree: boolean
   body: string
   filePath: string
 }
@@ -66,6 +67,7 @@ export type TaskInput = {
   project?: string
   status?: Lane
   blockers?: string[]
+  worktree?: boolean | string
 }
 
 export type TaskPatch = {
@@ -76,6 +78,7 @@ export type TaskPatch = {
   effort?: string
   project?: string
   blockers?: string[]
+  worktree?: boolean | string
 }
 
 export const CONFIG_KEYS = [

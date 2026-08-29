@@ -16,6 +16,7 @@ export type FormValues = {
   agent: string
   effort: string
   project: string
+  worktree: boolean
   blockers: string[]
 }
 
@@ -30,7 +31,7 @@ export type ProjectOption = {
   path: string
 }
 
-type FieldName = "title" | "description" | "type" | "effort" | "agent" | "project" | "blockers"
+type FieldName = "title" | "description" | "type" | "effort" | "agent" | "project" | "worktree" | "blockers"
 
 type TaskFormProps = {
   mode: "create" | "edit"
@@ -45,7 +46,7 @@ type TaskFormProps = {
   onCancel: () => void
 }
 
-const FIELDS = ["title", "description", "type", "effort", "agent", "project", "blockers"] as const
+const FIELDS = ["title", "description", "type", "effort", "agent", "project", "worktree", "blockers"] as const
 
 const NONE_BLOCKER_OPTION = { name: "none", description: "", value: "" }
 
@@ -57,6 +58,11 @@ const SELECT_BINDINGS = [
 const NONE_TYPE_OPTION = { name: "none", description: "", value: "" }
 
 const NONE_EFFORT_OPTION = { name: "none", description: "", value: "" }
+
+const WORKTREE_OPTIONS = [
+  { name: "No", description: "", value: "no" },
+  { name: "Yes", description: "", value: "yes" },
+]
 
 const EFFORT_OPTIONS = [
   NONE_EFFORT_OPTION,
@@ -97,6 +103,7 @@ export function classifyFormError(
   if (lower.includes("effort")) return { effort: message }
   if (lower.includes("agent")) return { agent: message }
   if (lower.includes("block")) return { blockers: message }
+  if (lower.includes("worktree")) return { worktree: message }
   if (lower.includes("project") || lower.includes("path")) return { project: message }
   return { form: message }
 }
@@ -198,6 +205,7 @@ export function TaskForm(props: TaskFormProps) {
   const [project, setProject] = useState(
     props.initial.project || props.projectOptions?.[0]?.path || "",
   )
+  const [worktree, setWorktree] = useState(props.initial.worktree)
   const [blockers, setBlockers] = useState(props.initial.blockers)
   const [blockerIndex, setBlockerIndex] = useState(0)
   const [fieldErrors, setFieldErrors] = useState<Partial<Record<FieldName | "form", string>>>(() =>
@@ -209,6 +217,7 @@ export function TaskForm(props: TaskFormProps) {
   const effortRef = useRef(effort)
   const agentRef = useRef(agent)
   const projectRef = useRef(project)
+  const worktreeRef = useRef(worktree)
   const blockersRef = useRef(blockers)
   const descRef = useRef<TextareaRenderable>(null)
   titleRef.current = title
@@ -216,6 +225,7 @@ export function TaskForm(props: TaskFormProps) {
   effortRef.current = effort
   agentRef.current = agent
   projectRef.current = project
+  worktreeRef.current = worktree
   blockersRef.current = blockers
   const blockerTasks = props.blockerTasks ?? []
 
@@ -310,6 +320,7 @@ export function TaskForm(props: TaskFormProps) {
     const nextEffort = effortRef.current
     const nextAgent = agentRef.current
     const nextProject = projectRef.current
+    const nextWorktree = worktreeRef.current
     const nextBlockers = blockersRef.current
     const errors: Partial<Record<FieldName | "form", string>> = {}
     if (!nextTitle.trim()) errors.title = "Title is required."
@@ -334,6 +345,7 @@ export function TaskForm(props: TaskFormProps) {
       agent: nextAgent,
       effort: nextEffort,
       project: nextProject,
+      worktree: nextWorktree,
       blockers: nextBlockers,
     })
   }
@@ -618,40 +630,79 @@ export function TaskForm(props: TaskFormProps) {
           </box>
         </box>
 
-        <FormField
-          label={truncateCells(
-            blockers.length > 0 ? `blockers  ${blockers.join(", ")}` : "blockers",
-            Math.max(8, dialogWidth - 4),
-          )}
-          focused={focus === 6}
-          error={fieldErrors.blockers}
-          color={color}
-          onMouseDown={() => setFocus(6)}
-        >
-          <select
-            options={blockerOptions}
-            selectedIndex={blockerIndex}
-            focused={focus === 6}
-            width="100%"
-            height={1}
-            showDescription={false}
-            showSelectionIndicator={false}
-            wrapSelection
-            keyBindings={SELECT_BINDINGS}
-            backgroundColor={color ? theme.bg : undefined}
-            textColor={color ? theme.fg : undefined}
-            focusedBackgroundColor={color ? theme.bg : undefined}
-            focusedTextColor={color ? theme.fg : undefined}
-            selectedBackgroundColor={color ? theme.selectedBg : undefined}
-            selectedTextColor={color ? theme.fg : undefined}
-            onChange={(index) => {
-              setBlockerIndex(index)
-            }}
-            onSelect={(_index, option) => {
-              applyBlockerOption(option?.value ?? option?.name ?? "")
-            }}
-          />
-        </FormField>
+        <box flexDirection="row" gap={2} flexShrink={0} width="100%">
+          <box width={14} flexShrink={0}>
+            <FormField
+              label="worktree"
+              focused={focus === 6}
+              error={fieldErrors.worktree}
+              color={color}
+              onMouseDown={() => setFocus(6)}
+            >
+              <select
+                options={WORKTREE_OPTIONS}
+                selectedIndex={worktree ? 1 : 0}
+                focused={focus === 6}
+                width="100%"
+                height={1}
+                showDescription={false}
+                showSelectionIndicator={false}
+                wrapSelection
+                keyBindings={SELECT_BINDINGS}
+                backgroundColor={color ? theme.bg : undefined}
+                textColor={color ? theme.fg : undefined}
+                focusedBackgroundColor={color ? theme.bg : undefined}
+                focusedTextColor={color ? theme.fg : undefined}
+                selectedBackgroundColor={color ? theme.selectedBg : undefined}
+                selectedTextColor={color ? theme.fg : undefined}
+                onChange={(_index, option) => {
+                  const value = option?.value ?? option?.name ?? ""
+                  if (typeof value !== "string") return
+                  const next = value.toLowerCase() === "yes"
+                  worktreeRef.current = next
+                  setWorktree(next)
+                  clearError("worktree")
+                }}
+              />
+            </FormField>
+          </box>
+          <box flexGrow={1} flexShrink={1}>
+            <FormField
+              label={truncateCells(
+                blockers.length > 0 ? `blockers  ${blockers.join(", ")}` : "blockers",
+                Math.max(8, dialogWidth - 18),
+              )}
+              focused={focus === 7}
+              error={fieldErrors.blockers}
+              color={color}
+              onMouseDown={() => setFocus(7)}
+            >
+              <select
+                options={blockerOptions}
+                selectedIndex={blockerIndex}
+                focused={focus === 7}
+                width="100%"
+                height={1}
+                showDescription={false}
+                showSelectionIndicator={false}
+                wrapSelection
+                keyBindings={SELECT_BINDINGS}
+                backgroundColor={color ? theme.bg : undefined}
+                textColor={color ? theme.fg : undefined}
+                focusedBackgroundColor={color ? theme.bg : undefined}
+                focusedTextColor={color ? theme.fg : undefined}
+                selectedBackgroundColor={color ? theme.selectedBg : undefined}
+                selectedTextColor={color ? theme.fg : undefined}
+                onChange={(index) => {
+                  setBlockerIndex(index)
+                }}
+                onSelect={(_index, option) => {
+                  applyBlockerOption(option?.value ?? option?.name ?? "")
+                }}
+              />
+            </FormField>
+          </box>
+        </box>
 
         {fieldErrors.form ? (
           <text fg={color ? theme.error : undefined}>{fieldErrors.form}</text>
@@ -659,7 +710,7 @@ export function TaskForm(props: TaskFormProps) {
         <box marginTop={1} flexShrink={0}>
           <FooterHints
             color={color}
-            showToggle={focus === 6}
+            showToggle={focus === 7}
             onNext={() => setFocus((i) => (i + 1) % FIELDS.length)}
             onToggle={() => {
               const option = blockerOptions[blockerIndex]
@@ -688,6 +739,7 @@ export function defaultFormValues(config: Config, cwd: string): FormValues {
       : (Object.keys(config.agents)[0] ?? ""),
     effort: "",
     project: defaultProjectPath(config, cwd),
+    worktree: false,
     blockers: [],
   }
 }

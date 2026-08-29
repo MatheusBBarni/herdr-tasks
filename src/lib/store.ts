@@ -14,6 +14,7 @@ import {
 } from "./blockers.ts"
 import { normalizeEffort } from "./effort.ts"
 import { NONE_TASK_TYPE, normalizeTaskType } from "./task-types.ts"
+import { normalizeWorktree, parseWorktreeField } from "./worktree.ts"
 import {
   LANES,
   type Config,
@@ -62,6 +63,7 @@ type Frontmatter = {
   updated?: unknown
   herdr?: unknown
   blockers?: unknown
+  worktree?: unknown
 }
 
 function splitMarkdown(text: string): { yaml: string; body: string } {
@@ -126,6 +128,7 @@ export function parseTaskMarkdown(text: string, filePath: string): Task {
     updated: asString(fm.updated) ?? nowIso(),
     herdr: parseHerdr(fm.herdr),
     blockers: parseBlockers(fm.blockers),
+    worktree: parseWorktreeField(fm.worktree),
     body: body.replace(/^\n/, ""),
     filePath,
   }
@@ -141,6 +144,7 @@ function yamlDump(task: Task): string {
     ...(task.effort ? { effort: task.effort } : {}),
     project: task.project,
     ...(task.blockers.length > 0 ? { blockers: task.blockers } : {}),
+    ...(task.worktree ? { worktree: true } : {}),
     created: task.created,
     updated: task.updated,
     herdr: {
@@ -224,6 +228,7 @@ export async function createTask(
     updated: stamp,
     herdr: { workspace_id: null, pane_id: null, agent_name: null },
     blockers: [],
+    worktree: normalizeWorktree(input.worktree),
     body: defaultBody(title, input.description ?? ""),
     filePath,
   }
@@ -248,9 +253,10 @@ export async function editTask(paths: BoardPaths, id: string, patch: TaskPatch):
     !patch.agent &&
     patch.effort === undefined &&
     !patch.project &&
-    patch.blockers === undefined
+    patch.blockers === undefined &&
+    patch.worktree === undefined
   ) {
-    fail("Nothing to edit. Pass --title, --description, --type, --agent, --effort, --project, or --blockers.")
+    fail("Nothing to edit. Pass --title, --description, --type, --agent, --effort, --project, --blockers, or --worktree.")
   }
   const config = await loadConfig(paths)
   const task = await getTask(paths, id)
@@ -290,6 +296,9 @@ export async function editTask(paths: BoardPaths, id: string, patch: TaskPatch):
   if (patch.blockers !== undefined) {
     const existing = await listTasks(paths)
     task.blockers = assertBlockersValid(existing, patch.blockers, id)
+  }
+  if (patch.worktree !== undefined) {
+    task.worktree = normalizeWorktree(patch.worktree)
   }
   task.updated = nowIso()
   await writeTask(task)

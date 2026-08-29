@@ -57,6 +57,9 @@ test("classifyFormError puts messages under the matching field", () => {
   expect(classifyFormError("Unknown blocker 'dev-99'.")).toEqual({
     blockers: "Unknown blocker 'dev-99'.",
   })
+  expect(classifyFormError("Unknown worktree 'maybe'. Use yes or no.")).toEqual({
+    worktree: "Unknown worktree 'maybe'. Use yes or no.",
+  })
   expect(classifyFormError("Project path does not exist: /tmp/missing")).toEqual({
     project: "Project path does not exist: /tmp/missing",
   })
@@ -67,6 +70,7 @@ test("classifyFormError puts messages under the matching field", () => {
 test("defaultFormValues uses cwd when no projects are listed", () => {
   expect(defaultFormValues(cfg(), "/cwd").project).toBe("/cwd")
   expect(defaultFormValues(cfg({ default_project: "/mine" }), "/cwd").project).toBe("/mine")
+  expect(defaultFormValues(cfg(), "/cwd").worktree).toBe(false)
 })
 
 test("defaultFormValues picks a listed project", () => {

@@ -88,6 +88,9 @@ export function PreviewOverlay(props: OverlayProps & { task: Task }) {
           <text fg={color ? theme.muted : undefined}>{`effort   ${task.effort}`}</text>
         ) : null}
         <text fg={color ? theme.muted : undefined}>{`project  ${task.project}`}</text>
+        {task.worktree ? (
+          <text fg={color ? theme.muted : undefined}>worktree yes</text>
+        ) : null}
         {task.blockers.length > 0 ? (
           <text fg={color ? theme.muted : undefined}>{`blockers ${task.blockers.join(", ")}`}</text>
         ) : null}

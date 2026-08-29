@@ -263,6 +263,7 @@ export function App(props: AppProps) {
       agent: task.agent,
       effort: task.effort,
       project: task.project,
+      worktree: task.worktree,
       blockers: task.blockers,
     })
     setFormError(null)
@@ -298,6 +299,7 @@ export function App(props: AppProps) {
             effort: values.effort,
             project: values.project.trim(),
             blockers: values.blockers,
+            worktree: values.worktree,
           })
           setTasks((all) => [...all, task])
           focusInLane(task.status, task.id)
@@ -311,6 +313,7 @@ export function App(props: AppProps) {
             effort: values.effort,
             project: values.project.trim(),
             blockers: values.blockers,
+            worktree: values.worktree,
           })
           setTasks((all) => all.map((item) => (item.id === task.id ? task : item)))
           showToast(`updated ${task.id}`)

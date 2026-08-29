@@ -14,6 +14,7 @@ const doneWithLayout: Task = {
   updated: "",
   herdr: { workspace_id: "w1", pane_id: "w1:p1", agent_name: null },
   blockers: [],
+  worktree: false,
   body: "",
   filePath: "/repo/.herdr-tasks/tasks/dev-1.md",
 }

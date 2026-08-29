@@ -78,9 +78,9 @@ htasks init [--prefix dev] [--agent grok] [--project <path>]
 htasks board
 htasks list [--status <lane>] [--json]
 htasks show <id> [--json]
-htasks create --title T [--description D] [--type T] [--agent A] [--effort E] [--project <path|key>] [--status backlog] [--blockers id,id]
+htasks create --title T [--description D] [--type T] [--agent A] [--effort E] [--project <path|key>] [--status backlog] [--blockers id,id] [--worktree yes|no]
 htasks move <id> <lane>
-htasks edit <id> [--title T] [--description D] [--type T] [--agent A] [--effort E] [--project <path|key>] [--blockers id,id]
+htasks edit <id> [--title T] [--description D] [--type T] [--agent A] [--effort E] [--project <path|key>] [--blockers id,id] [--worktree yes|no]
 htasks path <id>
 htasks root
 htasks config get|set <key> [value]
@@ -92,7 +92,7 @@ htasks doctor [--json]
 
 Lanes: `backlog`, `in_progress`, `done`.
 
-Unknown id, bad lane, missing project path, unknown agent key, unknown type, unknown effort, or unknown blocker exits non-zero.
+Unknown id, bad lane, missing project path, unknown agent key, unknown type, unknown effort, unknown worktree, or unknown blocker exits non-zero.
 A task with unfinished blockers cannot move to `in_progress`.
 `--blockers` is a comma-separated list of task ids; pass `none` or empty to clear.
 
@@ -139,6 +139,16 @@ The flag depends on the agent `kind`:
 Empty / `none` means do not pass a flag (the agent default).
 Create/edit form has an effort select.
 CLI: `htasks create --title "Hard bug" --effort high`.
+
+## Worktrees
+
+Create/edit form has a Worktree select (`Yes` / `No`, default `No`).
+When `Yes`, `move … in_progress` creates a Git worktree through Herdr on `<type>/<id>` (e.g. `feat/dev-11`), then opens the configured Herdr layout inside that checkout and starts the agent there.
+
+CLI: `htasks create --title "Isolated fix" --type fix --worktree yes`.
+
+The task `project` stays the original repo path.
+If `.herdr-tasks` is gitignored, htasks symlinks it into the worktree so `htasks move <id> done` still finds the board.
 
 ## Task types
 
@@ -227,6 +237,7 @@ Project path must exist (or be a key from `[projects.*]` when that list is set).
 Agent must be a config key.
 Type is a select from `task_types` in config (or none).
 Effort is a select (`low`, `medium`, `high`, `xhigh`, `max`, or none) and is passed to the agent command when the task starts.
+Worktree is Yes or No (default No). Yes starts the agent in a new git worktree on `<type>/<id>`.
 Blockers is a select of other tasks; Enter toggles. A task cannot move to In Progress while any blocker is not done.
 Default project is cwd when you are inside a repo.
 Default agent is `default_agent`.

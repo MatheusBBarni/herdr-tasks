@@ -7,6 +7,7 @@ import { getConfigValue, loadConfig, saveConfig, setConfigValue } from "../lib/c
 import { formatDoctorReport, runDoctor } from "../lib/doctor.ts"
 import { CliError } from "../lib/errors.ts"
 import { parseBlockersInput } from "../lib/blockers.ts"
+import { normalizeWorktree } from "../lib/worktree.ts"
 import { moveTask } from "../lib/move.ts"
 import { findBoardRoot, requireBoardRoot } from "../lib/root.ts"
 import {
@@ -44,6 +45,7 @@ function taskJson(task: Task) {
     updated: task.updated,
     herdr: task.herdr,
     blockers: task.blockers,
+    worktree: task.worktree,
     path: task.filePath,
     body: task.body,
   }
@@ -168,6 +170,7 @@ Examples:
       if (task.effort) writeOut(`effort   ${task.effort}`)
       writeOut(`project  ${task.project}`)
       if (task.blockers.length > 0) writeOut(`blockers ${task.blockers.join(", ")}`)
+      if (task.worktree) writeOut("worktree yes")
       writeOut(`path     ${task.filePath}`)
       writeOut(`updated  ${task.updated}`)
       if (task.herdr.pane_id) writeOut(`pane     ${task.herdr.pane_id}`)
@@ -188,6 +191,7 @@ Examples:
     .option("--project <path|key>", "project path or config project key")
     .option("--status <lane>", "initial lane", "backlog")
     .option("--blockers <ids>", "comma-separated blocker task ids")
+    .option("--worktree <yes|no>", "create a git worktree when moving to in_progress")
     .action(
       async (opts: {
         title: string
@@ -198,6 +202,7 @@ Examples:
         project?: string
         status: string
         blockers?: string
+        worktree?: string
       }) => {
         const paths = await requireBoardRoot()
         const status = requireLane(opts.status) as Lane
@@ -210,6 +215,7 @@ Examples:
           project: opts.project,
           status,
           blockers: opts.blockers !== undefined ? parseBlockersInput(opts.blockers) : undefined,
+          worktree: opts.worktree !== undefined ? normalizeWorktree(opts.worktree) : undefined,
         })
         writeOut(task.id)
       },
@@ -237,6 +243,7 @@ Examples:
     .option("--effort <level>", "agent effort: low, medium, high, xhigh, max (none to clear)")
     .option("--project <path|key>", "project path or config project key")
     .option("--blockers <ids>", "comma-separated blocker task ids (empty or none to clear)")
+    .option("--worktree <yes|no>", "create a git worktree when moving to in_progress")
     .action(
       async (
         id: string,
@@ -248,6 +255,7 @@ Examples:
           effort?: string
           project?: string
           blockers?: string
+          worktree?: string
         },
       ) => {
         const paths = await requireBoardRoot()
@@ -259,6 +267,7 @@ Examples:
           effort: opts.effort,
           project: opts.project,
           blockers: opts.blockers !== undefined ? parseBlockersInput(opts.blockers) : undefined,
+          worktree: opts.worktree !== undefined ? normalizeWorktree(opts.worktree) : undefined,
         })
         writeOut(task.id)
       },

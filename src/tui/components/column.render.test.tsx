@@ -24,6 +24,7 @@ function task(id: string, title: string): Task {
     updated: "",
     herdr: { workspace_id: null, pane_id: null, agent_name: null },
     blockers: [],
+    worktree: false,
     body: "",
     filePath: "",
   }

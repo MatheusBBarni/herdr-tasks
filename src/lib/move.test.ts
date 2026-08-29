@@ -25,6 +25,11 @@ function mockHerdr(opts?: {
   failCreate?: boolean
   failPrompt?: boolean
   pane?: string
+  worktrees?: Array<{ branch: string; path: string }>
+  worktreePath?: string
+  worktreeWorkspace?: string
+  worktreePane?: string
+  failWorktree?: boolean
 }): { runner: HerdrRunner; calls: string[][] } {
   const calls: string[][] = []
   const runner: HerdrRunner = async (_bin, args) => {
@@ -32,6 +37,30 @@ function mockHerdr(opts?: {
     if (args[0] === "--version") return { code: 0, stdout: "0.8.2", stderr: "" }
     if (args[0] === "status") {
       return { code: 0, stdout: JSON.stringify({ server: { running: true, status: "running" } }), stderr: "" }
+    }
+    if (args[0] === "worktree" && args[1] === "list") {
+      return {
+        code: 0,
+        stdout: JSON.stringify({ result: { worktrees: opts?.worktrees ?? [] } }),
+        stderr: "",
+      }
+    }
+    if (args[0] === "worktree" && args[1] === "create") {
+      if (opts?.failWorktree) return { code: 1, stdout: "", stderr: "not a git repository" }
+      return {
+        code: 0,
+        stdout: JSON.stringify({
+          result: {
+            worktree: { path: opts?.worktreePath ?? "/tmp/wt" },
+            workspace: { workspace_id: opts?.worktreeWorkspace ?? "wWT" },
+            root_pane: { pane_id: opts?.worktreePane ?? "wWT:p1" },
+          },
+        }),
+        stderr: "",
+      }
+    }
+    if (args[0] === "workspace" && args[1] === "close") {
+      return { code: 0, stdout: "{}", stderr: "" }
     }
     if (args[0] === "workspace" && args[1] === "create") {
       if (opts?.failCreate) return { code: 1, stdout: "", stderr: "herdr: server down" }
@@ -81,6 +110,7 @@ function mockHerdr(opts?: {
               { pane_id: "w1:p1", agent: "grok" },
               { pane_id: "w1:p2", agent: "grok" },
               { pane_id: "w1:p9", agent: "grok" },
+              { pane_id: opts?.worktreePane ?? "wWT:p1", agent: "grok" },
             ],
           },
         }),
@@ -199,6 +229,79 @@ test("move in_progress is blocked by unfinished blockers", async () => {
   await moveTask(paths, blocker.id, "done")
   const moved = await moveTask(paths, blocked.id, "in_progress", { runner: mockHerdr().runner })
   expect(moved.status).toBe("in_progress")
+})
+
+test("move in_progress with worktree creates checkout then tab layout", async () => {
+  const { dir, paths } = await tempBoard()
+  await setConfigValue(paths, "herdr_behavior", "tab")
+  const task = await createTask(paths, { title: "Isolated", type: "feat", worktree: true }, dir)
+  const { runner, calls } = mockHerdr({ worktreePath: "/tmp/feat-dev" })
+  const moved = await moveTask(paths, task.id, "in_progress", { runner })
+  expect(moved.status).toBe("in_progress")
+  expect(moved.project).toBe(dir)
+  expect(moved.herdr.pane_id).toBe("w1:p2")
+  expect(
+    calls.some(
+      (args) =>
+        args[0] === "worktree" &&
+        args[1] === "create" &&
+        args.includes("feat/" + task.id) &&
+        args.includes(dir),
+    ),
+  ).toBe(true)
+  expect(calls.some((args) => args[0] === "workspace" && args[1] === "close" && args[2] === "wWT")).toBe(
+    true,
+  )
+  expect(
+    calls.some(
+      (args) =>
+        args[0] === "tab" &&
+        args[1] === "create" &&
+        args.includes("--cwd") &&
+        args.includes("/tmp/feat-dev"),
+    ),
+  ).toBe(true)
+  const prompt = calls.find((args) => args[0] === "agent" && args[1] === "prompt")
+  expect(prompt?.[3]).toContain("/tmp/feat-dev")
+})
+
+test("move in_progress reuses an existing worktree path", async () => {
+  const { dir, paths } = await tempBoard()
+  const task = await createTask(paths, { title: "Isolated", type: "fix", worktree: true }, dir)
+  const { runner, calls } = mockHerdr({
+    worktrees: [{ branch: `fix/${task.id}`, path: "/tmp/existing-wt" }],
+  })
+  await moveTask(paths, task.id, "in_progress", { runner })
+  expect(calls.some((args) => args[0] === "worktree" && args[1] === "create")).toBe(false)
+  expect(
+    calls.some(
+      (args) => args[0] === "workspace" && args[1] === "create" && args.includes("/tmp/existing-wt"),
+    ),
+  ).toBe(true)
+})
+
+test("worktree + workspace behavior reuses the worktree workspace", async () => {
+  const { dir, paths } = await tempBoard()
+  const task = await createTask(paths, { title: "Isolated", worktree: true }, dir)
+  const { runner, calls } = mockHerdr({
+    worktreePath: "/tmp/wt",
+    worktreeWorkspace: "wWT",
+    worktreePane: "wWT:p1",
+  })
+  const moved = await moveTask(paths, task.id, "in_progress", { runner })
+  expect(moved.herdr.workspace_id).toBe("wWT")
+  expect(moved.herdr.pane_id).toBe("wWT:p1")
+  expect(calls.some((args) => args[0] === "workspace" && args[1] === "create")).toBe(false)
+  expect(calls.some((args) => args[0] === "workspace" && args[1] === "close")).toBe(false)
+})
+
+test("worktree create failure reverts status", async () => {
+  const { dir, paths } = await tempBoard()
+  const task = await createTask(paths, { title: "Isolated", worktree: true }, dir)
+  const { runner } = mockHerdr({ failWorktree: true })
+  await expect(moveTask(paths, task.id, "in_progress", { runner })).rejects.toThrow(/not a git repository/)
+  const loaded = await getTask(paths, task.id)
+  expect(loaded.status).toBe("backlog")
 })
 
 test("bad lane is an error", async () => {

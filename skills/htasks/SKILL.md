@@ -10,14 +10,15 @@ Use **only** `htasks` to read and update tasks. Never edit `.herdr-tasks/tasks/*
 htasks root
 htasks list --json
 htasks show <id> --json
-htasks create --title T [--description D] [--type T] [--agent A] [--effort E] [--project P] [--status backlog] [--blockers id,id]
+htasks create --title T [--description D] [--type T] [--agent A] [--effort E] [--project P] [--status backlog] [--blockers id,id] [--worktree yes|no]
 htasks move <id> in_progress
 htasks move <id> done
 ```
 
-`create` covers the board form fields: `--title` (required), `--description`, `--type` (from config `task_types`), `--agent` (config map key), `--effort` (`low`, `medium`, `high`, `xhigh`, `max`), `--project` (must exist), `--blockers` (comma-separated task ids). `--status` is CLI-only; default `backlog`. Prints the new id.
+`create` covers the board form fields: `--title` (required), `--description`, `--type` (from config `task_types`), `--agent` (config map key), `--effort` (`low`, `medium`, `high`, `xhigh`, `max`), `--project` (must exist), `--blockers` (comma-separated task ids), `--worktree yes|no` (default `no`). `--status` is CLI-only; default `backlog`. Prints the new id.
 `htasks edit <id> --effort high` sets effort; `--effort none` clears it. Effort is applied to the agent command when the task moves to `in_progress`.
 `htasks edit <id> --blockers id,id` sets blockers; `--blockers none` clears them.
+`htasks edit <id> --worktree yes` marks the task to start in a git worktree on `<type>/<id>` (e.g. `feat/dev-11`) when it moves to `in_progress`.
 A task cannot `move … in_progress` while any blocker is not `done`.
 
 ## Rules
