@@ -243,6 +243,10 @@ Default project is cwd when you are inside a repo.
 Default agent is `default_agent`.
 Default type is `default_type`.
 
+Descriptions are markdown.
+Put an image in as a link (`![alt](https://example.com/shot.png)` or the URL itself).
+Preview shows that URL as a terminal hyperlink, not an image preview.
+
 Click a card to focus it.
 Drag onto another column to move.
 OpenTUI has no native drag-and-drop API; the board hit-tests lanes on mouse down/up.

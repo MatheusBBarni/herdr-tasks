@@ -220,6 +220,18 @@ test("task cannot block itself", async () => {
   await expect(editTask(paths, "dev-1", { blockers: ["dev-1"] })).rejects.toThrow(/cannot block itself/)
 })
 
+test("create keeps an image markdown link in the description", async () => {
+  const { dir, paths } = await tempBoard()
+  const task = await createTask(
+    paths,
+    { title: "Shot", description: "See ![login](https://ex.com/a.png)" },
+    dir,
+  )
+  expect(task.body).toContain("![login](https://ex.com/a.png)")
+  const loaded = await getTask(paths, task.id)
+  expect(loaded.body).toContain("![login](https://ex.com/a.png)")
+})
+
 test("create keeps multiline description", async () => {
   const { dir, paths } = await tempBoard()
   const task = await createTask(

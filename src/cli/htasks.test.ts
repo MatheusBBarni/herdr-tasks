@@ -63,6 +63,25 @@ test("cli init, create, list json, show, move done", async () => {
   expect(path.stdout).toContain("dev-1.md")
 })
 
+test("cli create keeps an image link in the description", async () => {
+  const dir = await tempDir()
+  expect((await run(dir, ["init", "--project", dir])).code).toBe(0)
+  const created = await run(dir, [
+    "create",
+    "--title",
+    "Shot",
+    "--description",
+    "See ![login](https://ex.com/a.png)",
+  ])
+  expect(created.code).toBe(0)
+  const json = JSON.parse((await run(dir, ["show", created.stdout.trim(), "--json"])).stdout) as {
+    body: string
+  }
+  expect(json.body).toContain("![login](https://ex.com/a.png)")
+  const shown = await run(dir, ["show", created.stdout.trim()])
+  expect(shown.stdout).toContain("https://ex.com/a.png")
+})
+
 test("cli errors on missing board and unknown id", async () => {
   const dir = await tempDir()
   const list = await run(dir, ["list"])

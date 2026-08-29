@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react"
 import { useKeyboard } from "@opentui/react"
+import { hrefForDisplay, parseDescriptionParts } from "../../lib/description.ts"
 import { layoutNoun } from "../../lib/herdr.ts"
 import type { HerdrBehavior, Task } from "../../lib/types.ts"
 import { tuiColor, useTheme } from "../theme.ts"
@@ -62,6 +63,30 @@ export function HelpOverlay(props: OverlayProps & { behavior: HerdrBehavior }) {
   )
 }
 
+function DescriptionBody(props: { body: string; filePath: string }) {
+  const color = tuiColor()
+  const theme = useTheme()
+  if (!props.body.trim()) {
+    return <text>(no description)</text>
+  }
+  const parts = parseDescriptionParts(props.body)
+  return (
+    <text>
+      {parts.map((part, i) => {
+        if (part.type === "text") return <span key={i}>{part.value}</span>
+        const href = hrefForDisplay(part.href, props.filePath)
+        return (
+          <a key={i} href={href}>
+            <u>
+              <span fg={color ? theme.focus : undefined}>{part.label}</span>
+            </u>
+          </a>
+        )
+      })}
+    </text>
+  )
+}
+
 export function PreviewOverlay(props: OverlayProps & { task: Task }) {
   const color = tuiColor()
   const theme = useTheme()
@@ -98,7 +123,7 @@ export function PreviewOverlay(props: OverlayProps & { task: Task }) {
         <text> </text>
       </box>
       <scrollbox flexGrow={1} flexShrink={1} width="100%">
-        <text>{task.body || "(no description)"}</text>
+        <DescriptionBody body={task.body} filePath={task.filePath} />
       </scrollbox>
       <text fg={color ? theme.muted : undefined}>Esc to close</text>
     </box>

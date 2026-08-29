@@ -450,7 +450,7 @@ export function TaskForm(props: TaskFormProps) {
             flexGrow={0}
             flexShrink={0}
             wrapMode="word"
-            placeholder="optional"
+            placeholder="optional, images as links"
             onContentChange={() => {
               setDescription(descRef.current?.plainText ?? "")
             }}
