@@ -1,11 +1,11 @@
 import type { LiveAgentStatus } from "../../lib/herdr.ts"
 import { basename, truncateCells } from "../../lib/text.ts"
+import type { ThemePalette } from "../../lib/themes.ts"
 import type { Lane, Task } from "../../lib/types.ts"
 import { CARD_HEIGHT, cardRenderableId } from "../scroll.ts"
-import type { ThemePalette } from "../../lib/themes.ts"
 import { tuiColor, useTheme } from "../theme.ts"
 
-export type CardTone = "muted" | "accent" | "warn" | "error" | "ok"
+export type CardTone = "muted" | "accent" | "warn" | "ok"
 
 export type CardStatusView = {
   label: string
@@ -79,8 +79,6 @@ export function toneColor(tone: CardTone, theme: ThemePalette): string {
       return theme.focus
     case "warn":
       return theme.progress
-    case "error":
-      return theme.error
     case "ok":
       return theme.done
     default:

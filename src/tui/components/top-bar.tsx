@@ -1,3 +1,4 @@
+import type { LiveAgentStatus } from "../../lib/herdr.ts"
 import { cellWidth, truncateCells } from "../../lib/text.ts"
 import { tuiColor, useTheme } from "../theme.ts"
 
@@ -48,7 +49,7 @@ export function formatTopBar(opts: {
 
 export function liveRunningCount(opts: {
   launchingIds: ReadonlySet<string>
-  agentStatuses: ReadonlyMap<string, string>
+  agentStatuses: ReadonlyMap<string, LiveAgentStatus>
   inProgressCount: number
 }): number {
   let live = 0
