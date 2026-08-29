@@ -12,12 +12,14 @@ afterEach(() => {
   testSetup = undefined
 })
 
+const project = "/Users/matheusbbarni/projects/herdr-tasks"
+
 function task(partial: Partial<Task> & Pick<Task, "id" | "status" | "title">): Task {
   return {
     type: "feat",
     agent: "pi",
     effort: "",
-    project: "/Users/matheusbbarni/projects/herdr-tasks",
+    project,
     created: "",
     updated: "",
     herdr: { workspace_id: null, pane_id: null, agent_name: null },
@@ -46,6 +48,9 @@ async function renderBoard(width: number, singlePane: boolean) {
     <Board
       tasks={tasks}
       width={width}
+      boardName="herdr-tasks"
+      prefix="dev"
+      defaultProject={project}
       singlePane={singlePane}
       focusedLane="in_progress"
       focusedId="dev-14"
@@ -68,15 +73,20 @@ async function renderBoard(width: number, singlePane: boolean) {
 
 test("board shows live status on in_progress cards at 80x24", async () => {
   const frame = await renderBoard(80, false)
-  expect(frame).toContain("In Progress")
+  expect(frame).toContain("htasks")
+  expect(frame).toContain("IN PROGRESS")
   expect(frame).toContain("dev-14")
   expect(frame).toContain("working")
   expect(frame).toContain("pi")
+  expect(frame).toContain("[ space select ]")
+  expect(frame).not.toContain("empty")
 })
 
 test("board 60-col single pane still shows the status word", async () => {
   const frame = await renderBoard(60, true)
-  expect(frame).toContain("feat  working  pi  herdr-tasks")
+  expect(frame).toContain("working")
+  expect(frame).toContain("pi")
   expect(frame).toContain("dev-14")
   expect(frame).not.toContain("Later")
+  expect(frame).not.toContain("feat  working  pi  herdr-tasks")
 })

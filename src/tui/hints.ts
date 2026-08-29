@@ -32,7 +32,8 @@ export const HINTS_NARROW: Hint[] = [
 ]
 
 function hintWidth(hint: Hint): number {
-  return hint.action.length + 2 + hint.key.length
+  // `[ ${key} ${action} ]`
+  return hint.key.length + hint.action.length + 5
 }
 
 export function hintsForTask(base: readonly Hint[], task: Task | null): Hint[] {
@@ -56,7 +57,7 @@ export function hintsForTask(base: readonly Hint[], task: Task | null): Hint[] {
 export function fitHints(hints: readonly Hint[], width: number): Hint[] {
   const items = [...hints]
   const total = (list: Hint[]) =>
-    list.reduce((sum, hint, i) => sum + hintWidth(hint) + (i > 0 ? 2 : 0), 0)
+    list.reduce((sum, hint, i) => sum + hintWidth(hint) + (i > 0 ? 1 : 0), 0)
   for (const action of ["help", "preview", "open", "close", "edit", "card", "set"]) {
     if (total(items) <= width) break
     const idx = items.findIndex((hint) => hint.action === action)

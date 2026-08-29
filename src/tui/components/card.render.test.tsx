@@ -11,6 +11,8 @@ afterEach(() => {
   testSetup = undefined
 })
 
+const project = "/Users/matheusbbarni/projects/herdr-tasks"
+
 const task: Task = {
   id: "dev-14",
   title: "Show Herdr agent status",
@@ -18,7 +20,7 @@ const task: Task = {
   type: "feat",
   agent: "pi",
   effort: "",
-  project: "/Users/matheusbbarni/projects/herdr-tasks",
+  project,
   created: "",
   updated: "",
   herdr: { workspace_id: "wP", pane_id: "wP:pV", agent_name: null },
@@ -48,14 +50,17 @@ test("in_progress card shows the status word at 80-col column width", async () =
       focused
       selected={false}
       launching={false}
+      defaultProject={project}
       agentStatus="working"
       onMouseDown={() => {}}
     />,
-    { width: 26, height: 6 },
+    { width: 26, height: 8 },
   )
   expect(frame).toContain("working")
   expect(frame).toContain("pi")
   expect(frame).toContain("dev-14")
+  expect(frame).not.toContain(">")
+  expect(frame).not.toContain("herdr-tasks")
 })
 
 test("in_progress card meta fits the 60-col floor without wrapping", async () => {
@@ -66,13 +71,16 @@ test("in_progress card meta fits the 60-col floor without wrapping", async () =>
       focused={false}
       selected={false}
       launching={false}
+      defaultProject={project}
       agentStatus="blocked"
       onMouseDown={() => {}}
     />,
-    { width: 60, height: 6 },
+    { width: 60, height: 8 },
   )
-  expect(frame).toContain("feat  blocked  pi  herdr-tasks")
+  expect(frame).toContain("? blocked")
+  expect(frame).toContain("pi")
   expect(frame).toContain("dev-14")
+  expect(frame).not.toContain("feat  blocked")
 })
 
 test("launching card keeps starting… instead of live status", async () => {
@@ -83,10 +91,11 @@ test("launching card keeps starting… instead of live status", async () => {
       focused
       selected={false}
       launching
+      defaultProject={project}
       agentStatus="idle"
       onMouseDown={() => {}}
     />,
-    { width: 26, height: 6 },
+    { width: 26, height: 8 },
   )
   expect(frame).toContain("starting…")
   expect(frame).not.toContain("idle")

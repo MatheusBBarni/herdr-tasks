@@ -4,10 +4,14 @@ import { HINTS_NARROW, HINTS_WIDE, fitHints, hintsForTask } from "../hints.ts"
 import { Column } from "./column.tsx"
 import { HintBar } from "./hint-bar.tsx"
 import { ToastBar, type ToastInfo } from "./toast.tsx"
+import { TopBar, liveRunningCount } from "./top-bar.tsx"
 
 type BoardProps = {
   tasks: Task[]
   width: number
+  boardName: string
+  prefix: string
+  defaultProject: string
   singlePane: boolean
   focusedLane: Lane
   focusedId: string | null
@@ -19,30 +23,55 @@ type BoardProps = {
   toast: ToastInfo | null
 }
 
+export function splitColumnWidths(total: number, count: number): number[] {
+  const n = Math.max(1, count)
+  const base = Math.max(1, Math.floor(total / n))
+  const widths = Array.from({ length: n }, () => base)
+  let rest = Math.max(0, total - base * n)
+  for (let i = 0; rest > 0 && i < widths.length; i++) {
+    widths[i]! += 1
+    rest--
+  }
+  return widths
+}
+
 export function Board(props: BoardProps) {
   const lanes = props.singlePane ? [props.focusedLane] : [...LANES]
-  const colWidth = Math.max(12, Math.floor(props.width / lanes.length))
+  const colWidths = splitColumnWidths(props.width, lanes.length)
   const byLane = (lane: Lane) => props.tasks.filter((task) => task.status === lane)
   const focusedTask = props.tasks.find((task) => task.id === props.focusedId) ?? null
   const hints = fitHints(
     hintsForTask(props.singlePane ? HINTS_NARROW : HINTS_WIDE, focusedTask),
     props.width,
   )
+  const inProgressCount = byLane("in_progress").length
+  const running = liveRunningCount({
+    launchingIds: props.launchingIds,
+    agentStatuses: props.agentStatuses,
+    inProgressCount,
+  })
 
   return (
     <box flexDirection="column" width="100%" height="100%">
+      <TopBar
+        width={props.width}
+        running={running}
+        boardName={props.boardName}
+        prefix={props.prefix}
+      />
       <box flexDirection="row" flexGrow={1} flexShrink={1} width="100%">
-        {lanes.map((lane) => (
+        {lanes.map((lane, i) => (
           <Column
             key={lane}
             lane={lane}
             tasks={byLane(lane)}
-            width={colWidth}
+            width={colWidths[i] ?? 12}
             focused={props.focusedLane === lane}
             focusedId={props.focusedId}
             selectedId={props.selectedId}
             launchingIds={props.launchingIds}
             agentStatuses={props.agentStatuses}
+            defaultProject={props.defaultProject}
             onFocusTask={props.onFocusTask}
             onDrop={props.onDrop}
           />

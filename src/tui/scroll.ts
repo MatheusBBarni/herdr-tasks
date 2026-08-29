@@ -1,7 +1,7 @@
 import type { ScrollBoxRenderable } from "@opentui/core"
 
-/** Title + meta. Keep in sync with `Card`. */
-export const CARD_HEIGHT = 2
+/** Border + 3 content rows. Keep in sync with `Card`. */
+export const CARD_HEIGHT = 5
 /** `gap` on the lane’s card stack. */
 export const CARD_GAP = 1
 
