@@ -6,6 +6,7 @@ const doneWithLayout: Task = {
   id: "dev-1",
   title: "X",
   status: "done",
+  order: 0,
   type: "feat",
   agent: "claude",
   effort: "",
@@ -75,6 +76,41 @@ test("hintsForTask shows close instead of open on a done card with a layout", ()
   expect(fitHints(hintsForTask(HINTS_WIDE, doneWithLayout), 60).map((hint) => hint.action)).toEqual([
     "select",
     "move",
+    "new",
+    "set",
+    "quit",
+  ])
+})
+
+test("hintsForTask shows order when a card is selected", () => {
+  expect(hintsForTask(HINTS_WIDE, null, true).map((hint) => hint.action)).toEqual([
+    "select",
+    "move",
+    "order",
+    "new",
+    "edit",
+    "preview",
+    "help",
+    "open",
+    "set",
+    "quit",
+  ])
+  expect(hintsForTask(HINTS_NARROW, null, true).map((hint) => hint.action)).toEqual([
+    "lane",
+    "order",
+    "select",
+    "new",
+    "edit",
+    "preview",
+    "help",
+    "open",
+    "set",
+    "quit",
+  ])
+  expect(fitHints(hintsForTask(HINTS_WIDE, null, true), 80).map((hint) => hint.action)).toEqual([
+    "select",
+    "move",
+    "order",
     "new",
     "set",
     "quit",

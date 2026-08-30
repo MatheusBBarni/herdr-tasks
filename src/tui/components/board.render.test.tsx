@@ -27,6 +27,7 @@ function task(partial: Partial<Task> & Pick<Task, "id" | "status" | "title">): T
     worktree: false,
     body: "",
     filePath: "",
+    order: 0,
     ...partial,
   }
 }

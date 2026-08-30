@@ -26,6 +26,7 @@ const sample: Task = {
   id: "dev-1",
   title: "X",
   status: "in_progress",
+  order: 0,
   type: "feat",
   agent: "claude",
   effort: "",

@@ -64,6 +64,7 @@ export type Task = {
   id: string
   title: string
   status: Lane
+  order: number
   type: string
   agent: string
   effort: string

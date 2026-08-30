@@ -35,7 +35,7 @@ export function HelpOverlay(props: OverlayProps & { behavior: HerdrBehavior }) {
       title="Help"
       padding={1}
     >
-      <text>j/k or arrows   move focus</text>
+      <text>j/k or arrows   move focus (reorder selected)</text>
       <text>h/l or arrows   change column (or move selected)</text>
       <text>space           select card</text>
       <text>esc             clear selection / close</text>

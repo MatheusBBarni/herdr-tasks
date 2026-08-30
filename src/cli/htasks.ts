@@ -37,6 +37,7 @@ function taskJson(task: Task) {
     id: task.id,
     title: task.title,
     status: task.status,
+    order: task.order,
     type: task.type,
     agent: task.agent,
     effort: task.effort,

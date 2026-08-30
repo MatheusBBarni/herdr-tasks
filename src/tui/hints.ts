@@ -36,8 +36,18 @@ function hintWidth(hint: Hint): number {
   return hint.key.length + hint.action.length + 5
 }
 
-export function hintsForTask(base: readonly Hint[], task: Task | null): Hint[] {
+export function hintsForTask(base: readonly Hint[], task: Task | null, selected = false): Hint[] {
   const items = [...base]
+  if (selected) {
+    const order: Hint = { action: "order", key: "j/k" }
+    const cardIdx = items.findIndex((hint) => hint.action === "card")
+    if (cardIdx >= 0) {
+      items[cardIdx] = order
+    } else {
+      const moveIdx = items.findIndex((hint) => hint.action === "move")
+      items.splice(moveIdx >= 0 ? moveIdx + 1 : 1, 0, order)
+    }
+  }
   if (task?.status === "done") {
     const editIdx = items.findIndex((hint) => hint.action === "edit")
     if (editIdx >= 0) items.splice(editIdx, 1)
@@ -58,7 +68,7 @@ export function fitHints(hints: readonly Hint[], width: number): Hint[] {
   const items = [...hints]
   const total = (list: Hint[]) =>
     list.reduce((sum, hint, i) => sum + hintWidth(hint) + (i > 0 ? 1 : 0), 0)
-  for (const action of ["help", "preview", "open", "close", "edit", "card", "set"]) {
+  for (const action of ["help", "preview", "open", "close", "edit", "card", "set", "order"]) {
     if (total(items) <= width) break
     const idx = items.findIndex((hint) => hint.action === action)
     if (idx >= 0) items.splice(idx, 1)

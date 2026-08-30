@@ -15,6 +15,7 @@ import {
 import { normalizeEffort } from "./effort.ts"
 import { NONE_TASK_TYPE, normalizeTaskType } from "./task-types.ts"
 import { normalizeWorktree, parseWorktreeField } from "./worktree.ts"
+import { applyReorder, nextOrder, parseOrder, sortTasks } from "./order.ts"
 import {
   EMPTY_HERDR,
   LANES,
@@ -65,6 +66,7 @@ type Frontmatter = {
   herdr?: unknown
   blockers?: unknown
   worktree?: unknown
+  order?: unknown
 }
 
 function splitMarkdown(text: string): { yaml: string; body: string } {
@@ -130,6 +132,7 @@ export function parseTaskMarkdown(text: string, filePath: string): Task {
     herdr: parseHerdr(fm.herdr),
     blockers: parseBlockers(fm.blockers),
     worktree: parseWorktreeField(fm.worktree),
+    order: parseOrder(fm.order),
     body: body.replace(/^\n/, ""),
     filePath,
   }
@@ -140,6 +143,7 @@ function yamlDump(task: Task): string {
     id: task.id,
     title: task.title,
     status: task.status,
+    order: task.order,
     ...(task.type ? { type: task.type } : {}),
     agent: task.agent,
     ...(task.effort ? { effort: task.effort } : {}),
@@ -178,10 +182,11 @@ export async function readTaskFile(filePath: string): Promise<Task> {
 
 export async function listTasks(paths: BoardPaths): Promise<Task[]> {
   await ensureDir(paths.tasksDir)
-  const names = (await readdir(paths.tasksDir))
-    .filter((name) => name.endsWith(".md") && !name.startsWith("."))
-    .sort()
-  return Promise.all(names.map((name) => readTaskFile(join(paths.tasksDir, name))))
+  const names = (await readdir(paths.tasksDir)).filter(
+    (name) => name.endsWith(".md") && !name.startsWith("."),
+  )
+  const tasks = await Promise.all(names.map((name) => readTaskFile(join(paths.tasksDir, name))))
+  return sortTasks(tasks)
 }
 
 export async function getTask(paths: BoardPaths, id: string): Promise<Task> {
@@ -212,10 +217,12 @@ export async function createTask(
   const filePath = taskFilePath(paths, id)
   if (await pathExists(filePath)) fail(`Task file already exists: ${filePath}`)
   const stamp = nowIso()
+  const existing = await listTasks(paths)
   const task: Task = {
     id,
     title,
     status,
+    order: nextOrder(existing, status),
     type,
     agent,
     effort,
@@ -228,7 +235,6 @@ export async function createTask(
     body: defaultBody(title, input.description ?? ""),
     filePath,
   }
-  const existing = await listTasks(paths)
   task.blockers = assertBlockersValid(existing, input.blockers ?? [], id)
   if (status === "in_progress") {
     const blocked = formatBlockedError(id, existing, task.blockers)
@@ -310,11 +316,23 @@ export async function updateTaskStatus(
   herdr?: Task["herdr"],
 ): Promise<Task> {
   const task = await getTask(paths, id)
+  if (task.status !== status) {
+    const tasks = await listTasks(paths)
+    task.order = nextOrder(tasks, status, id)
+  }
   task.status = status
   task.updated = nowIso()
   if (herdr) task.herdr = herdr
   await writeTask(task)
   return task
+}
+
+export async function reorderTask(paths: BoardPaths, id: string, dir: -1 | 1): Promise<Task[]> {
+  const tasks = await listTasks(paths)
+  if (!tasks.some((task) => task.id === id)) fail(`Unknown task '${id}'. Try \`htasks list\`.`)
+  const { tasks: next, changed } = applyReorder(tasks, id, dir)
+  await Promise.all(changed.map((task) => writeTask(task)))
+  return next
 }
 
 export async function saveTask(task: Task): Promise<Task> {

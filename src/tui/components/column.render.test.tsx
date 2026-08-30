@@ -27,6 +27,7 @@ function task(id: string, title: string): Task {
     worktree: false,
     body: "",
     filePath: "",
+    order: 0,
   }
 }
 

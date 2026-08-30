@@ -142,6 +142,7 @@ Unknown bare keys error and list known keys. Free-form paths remain valid.
 id: "dev-1"
 title: "Add login"
 status: backlog
+order: 0
 type: feat
 agent: claude
 effort: high
@@ -172,7 +173,7 @@ Lanes: `backlog` | `in_progress` | `review` | `done`
 - Fields: title, description, type (from config `task_types`), agent (from config map), effort (`low`/`medium`/`high`/`xhigh`/`max` or none), project path (select from `[projects.*]` when present, else text), worktree (Yes/No, default No), blockers (select of other task ids)
 - Save → `.herdr-tasks/tasks/<prefix>-<next_id>.md`, bump `next_id`
 - 4 columns; card: id, title, type, agent key, project basename
-- Space select; Left/Right or h/l move; Esc clear; mouse click + drag
+- Space select; Left/Right or h/l move; Up/Down or j/k reorder selected; Esc clear; mouse click + drag
 - n create, c close Herdr layout (done), e edit, s settings, Enter preview, o focus Herdr layout (in_progress / review), ? help, q / Ctrl+C quit (destroy renderer)
 - Form: Tab fields; Enter submit except in description (newline) and blockers (toggle); Ctrl+Enter always submits; Esc cancel; title required; project path must exist (select from `[projects.*]` when present); agent must be a config key; effort is applied when starting the agent; worktree is Yes/No (default No); blockers is a select of other tasks
 - Default project to cwd when inside a repo

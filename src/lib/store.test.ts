@@ -4,7 +4,7 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { loadConfig, saveConfig } from "./config.ts"
 import { REVIEW_PROMPT_REL } from "./root.ts"
-import { createTask, editTask, getTask, initBoard, listTasks, parseTaskMarkdown, renderTaskMarkdown } from "./store.ts"
+import { createTask, editTask, getTask, initBoard, listTasks, parseTaskMarkdown, renderTaskMarkdown, reorderTask } from "./store.ts"
 
 const dirs: string[] = []
 
@@ -132,6 +132,7 @@ test("task markdown roundtrip", () => {
     id: "dev-1",
     title: "Add login",
     status: "backlog",
+    order: 0,
     type: "feat",
     agent: "claude",
     effort: "",
@@ -147,6 +148,7 @@ test("task markdown roundtrip", () => {
   const parsed = parseTaskMarkdown(rendered, "/tmp/dev-1.md")
   expect(parsed.id).toBe("dev-1")
   expect(parsed.title).toBe("Add login")
+  expect(parsed.order).toBe(0)
   expect(parsed.type).toBe("feat")
   expect(parsed.blockers).toEqual([])
   expect(parsed.herdr.pane_id).toBeNull()
@@ -158,6 +160,7 @@ test("task markdown with blockers roundtrips", () => {
     id: "dev-2",
     title: "Blocked",
     status: "backlog",
+    order: 0,
     type: "feat",
     agent: "claude",
     effort: "high",
@@ -199,6 +202,7 @@ herdr:
     "/tmp/dev-2.md",
   )
   expect(parsed.type).toBe("")
+  expect(parsed.order).toBe(0)
 })
 
 test("create and edit blockers", async () => {
@@ -325,4 +329,39 @@ herdr:
     "/tmp/dev-2.md",
   )
   expect(parsed.effort).toBe("")
+})
+
+test("create assigns sequential order in a lane", async () => {
+  const { dir, paths } = await tempBoard()
+  const first = await createTask(paths, { title: "A" }, dir)
+  const second = await createTask(paths, { title: "B" }, dir)
+  const otherLane = await createTask(paths, { title: "C", status: "done" }, dir)
+  expect(first.order).toBe(0)
+  expect(second.order).toBe(1)
+  expect(otherLane.order).toBe(0)
+  expect(await Bun.file(first.filePath).text()).toContain("order: 0")
+  expect(await Bun.file(second.filePath).text()).toContain("order: 1")
+})
+
+test("listTasks sorts by lane then order", async () => {
+  const { dir, paths } = await tempBoard()
+  const later = await createTask(paths, { title: "Later" }, dir)
+  const earlier = await createTask(paths, { title: "Earlier" }, dir)
+  later.order = 5
+  earlier.order = 1
+  await Bun.write(later.filePath, renderTaskMarkdown(later))
+  await Bun.write(earlier.filePath, renderTaskMarkdown(earlier))
+  expect((await listTasks(paths)).map((item) => item.id)).toEqual([earlier.id, later.id])
+})
+
+test("reorderTask swaps neighbors and writes order", async () => {
+  const { dir, paths } = await tempBoard()
+  const first = await createTask(paths, { title: "A" }, dir)
+  const second = await createTask(paths, { title: "B" }, dir)
+  const listed = await reorderTask(paths, first.id, 1)
+  expect(listed.map((item) => item.id)).toEqual([second.id, first.id])
+  expect((await getTask(paths, first.id)).order).toBe(1)
+  expect((await getTask(paths, second.id)).order).toBe(0)
+  expect(await Bun.file(first.filePath).text()).toContain("order: 1")
+  expect(await Bun.file(second.filePath).text()).toContain("order: 0")
 })

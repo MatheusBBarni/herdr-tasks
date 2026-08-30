@@ -15,6 +15,7 @@ const task: Task = {
   id: "dev-21",
   title: "Image in task description",
   status: "backlog",
+  order: 0,
   type: "feat",
   agent: "pi",
   effort: "",

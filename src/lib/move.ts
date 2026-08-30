@@ -11,6 +11,7 @@ import {
 } from "./herdr.ts"
 import { resolveProjectPath, type BoardPaths } from "./root.ts"
 import { formatBlockedError } from "./blockers.ts"
+import { nextOrder } from "./order.ts"
 import { getTask, listTasks, requireLane, saveTask, writeTask } from "./store.ts"
 import { EMPTY_HERDR, isLaunchLane, type Lane, type Task } from "./types.ts"
 
@@ -45,16 +46,18 @@ export async function moveTaskDetailed(
     return { task: previous }
   }
 
-  if (lane === "in_progress" && previous.status !== "in_progress") {
-    const tasks = await listTasks(paths)
-    const blocked = formatBlockedError(previous.id, tasks, previous.blockers)
-    if (blocked) fail(blocked)
-  }
-
   const next: Task = {
     ...previous,
     status: lane,
     updated: new Date().toISOString(),
+  }
+  if (previous.status !== lane) {
+    const tasks = await listTasks(paths)
+    if (lane === "in_progress") {
+      const blocked = formatBlockedError(previous.id, tasks, previous.blockers)
+      if (blocked) fail(blocked)
+    }
+    next.order = nextOrder(tasks, lane, id)
   }
   await writeTask(next)
 

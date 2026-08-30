@@ -7,6 +7,7 @@ import { CliError } from "../lib/errors.ts"
 import { closeTaskLayout, focusTaskLayout, hasHerdrLayout } from "../lib/herdr.ts"
 import { completeInProgressLaunch, completeReviewLaunch, moveTask, moveTaskDetailed } from "../lib/move.ts"
 import type { BoardPaths } from "../lib/root.ts"
+import { applyReorder, tasksInLane } from "../lib/order.ts"
 import { createTask, editTask, loadBoard, saveTask, writeTask } from "../lib/store.ts"
 import { basename } from "../lib/text.ts"
 import { DEFAULT_THEME, THEMES, type ThemeName } from "../lib/themes.ts"
@@ -27,10 +28,6 @@ type AppProps = {
   cwd: string
   initialConfig: Config
   initialTasks: Task[]
-}
-
-function tasksInLane(tasks: Task[], lane: Lane): Task[] {
-  return tasks.filter((task) => task.status === lane)
 }
 
 function adjacentLane(lane: Lane, dir: number): Lane {
@@ -128,6 +125,22 @@ export function App(props: AppProps) {
       if (next) setFocusedId(next.id)
     },
     [focusedLane, focusedId],
+  )
+
+  const reorderSelected = useCallback(
+    (dir: -1 | 1) => {
+      if (!selectedId) return
+      const { tasks: next, changed } = applyReorder(tasksRef.current, selectedId, dir)
+      if (changed.length === 0) return
+      tasksRef.current = next
+      setTasks(next)
+      setFocusedId(selectedId)
+      void Promise.all(changed.map((task) => writeTask(task))).catch((err) => {
+        showToast(err instanceof Error ? err.message : String(err), "error")
+        void reload()
+      })
+    },
+    [reload, selectedId, showToast],
   )
 
   const applyMove = useCallback(
@@ -359,12 +372,14 @@ export function App(props: AppProps) {
     }
     if (key.name === "j" || key.name === "down") {
       key.preventDefault?.()
-      moveFocused(1)
+      if (selectedId) reorderSelected(1)
+      else moveFocused(1)
       return
     }
     if (key.name === "k" || key.name === "up") {
       key.preventDefault?.()
-      moveFocused(-1)
+      if (selectedId) reorderSelected(-1)
+      else moveFocused(-1)
       return
     }
     if (key.name === "h" || key.name === "left" || key.name === "l" || key.name === "right") {

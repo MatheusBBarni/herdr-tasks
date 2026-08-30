@@ -17,6 +17,7 @@ const task: Task = {
   id: "dev-14",
   title: "Show Herdr agent status",
   status: "in_progress",
+  order: 0,
   type: "feat",
   agent: "pi",
   effort: "",

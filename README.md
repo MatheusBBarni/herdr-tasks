@@ -215,7 +215,7 @@ Below 40×10 it says the terminal is too small.
 
 | Key | Action |
 |-----|--------|
-| j/k, arrows | Focus card |
+| j/k, arrows | Focus card, or reorder the selected card |
 | h/l, arrows | Change column, or move the selected card |
 | space | Select |
 | esc | Clear selection / close overlay |

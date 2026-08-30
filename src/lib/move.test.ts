@@ -378,6 +378,16 @@ test("move review fails when the configured prompt file is missing", async () =>
   expect(loaded.status).toBe("backlog")
 })
 
+test("move to another lane appends order in the destination", async () => {
+  const { dir, paths, task: first } = await tempBoard()
+  const second = await createTask(paths, { title: "Second" }, dir)
+  await moveTask(paths, first.id, "done")
+  expect((await getTask(paths, first.id)).order).toBe(0)
+  expect((await getTask(paths, second.id)).order).toBe(1)
+  const third = await createTask(paths, { title: "Third", status: "done" }, dir)
+  expect(third.order).toBe(1)
+})
+
 test("move review reverts status when herdr fails", async () => {
   const { paths, task } = await tempBoard()
   const { runner } = mockHerdr({ failCreate: true })

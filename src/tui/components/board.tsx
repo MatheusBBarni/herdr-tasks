@@ -1,4 +1,5 @@
 import type { LiveAgentStatus } from "../../lib/herdr.ts"
+import { tasksInLane } from "../../lib/order.ts"
 import { LANES, isLaunchLane, type Lane, type Task } from "../../lib/types.ts"
 import { HINTS_NARROW, HINTS_WIDE, fitHints, hintsForTask } from "../hints.ts"
 import { Column } from "./column.tsx"
@@ -38,10 +39,14 @@ export function splitColumnWidths(total: number, count: number): number[] {
 export function Board(props: BoardProps) {
   const lanes = props.singlePane ? [props.focusedLane] : [...LANES]
   const colWidths = splitColumnWidths(props.width, lanes.length)
-  const byLane = (lane: Lane) => props.tasks.filter((task) => task.status === lane)
+  const byLane = (lane: Lane) => tasksInLane(props.tasks, lane)
   const focusedTask = props.tasks.find((task) => task.id === props.focusedId) ?? null
   const hints = fitHints(
-    hintsForTask(props.singlePane ? HINTS_NARROW : HINTS_WIDE, focusedTask),
+    hintsForTask(
+      props.singlePane ? HINTS_NARROW : HINTS_WIDE,
+      focusedTask,
+      props.selectedId != null,
+    ),
     props.width,
   )
   const liveCount = props.tasks.filter((task) => isLaunchLane(task.status)).length
