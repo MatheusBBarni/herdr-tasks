@@ -9,6 +9,8 @@
   "files": [
     "src",
     "skills",
+    "scripts",
+    "herdr-plugin.toml",
     "README.md"
   ],
   "scripts": {

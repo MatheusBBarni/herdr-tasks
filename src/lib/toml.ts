@@ -74,9 +74,9 @@ bin = "herdr"
 # tab | workspace | pane
 behavior = "workspace"
 
-# Review lane: after in_progress, move here. Empty agent uses the task's agent.
+# Review lane: after in_progress, move here. Reuses the live pane; empty agent uses the task's agent.
 # skill = skill name (thermo-nuclear-code-quality-review) or path to SKILL.md
-# prompt = extra prompt file (absolute or relative to the board root)
+# prompt = extra prompt file (absolute or relative to the board root); empty uses prompts/review.md
 [review]
 agent = ""
 skill = ""

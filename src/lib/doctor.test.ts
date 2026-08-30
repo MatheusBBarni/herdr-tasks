@@ -28,6 +28,7 @@ test("doctor fails when herdr is missing", async () => {
   const cwd = await tempDir()
   const home = await tempDir()
   const report = await runDoctor({
+    env: {},
     cwd,
     home,
     bunVersion: "1.3.13",
@@ -48,6 +49,7 @@ test("doctor finds herdr skill and running server", async () => {
   await mkdir(skill, { recursive: true })
   await writeFile(join(skill, "SKILL.md"), "# herdr\n")
   const report = await runDoctor({
+    env: {},
     cwd,
     home,
     bunVersion: "1.3.13",
@@ -79,6 +81,7 @@ test("old bun is a failure", async () => {
   const cwd = await tempDir()
   const home = await tempDir()
   const report = await runDoctor({
+    env: {},
     cwd,
     home,
     bunVersion: "1.2.0",
@@ -88,4 +91,38 @@ test("old bun is a failure", async () => {
   })
   expect(report.ok).toBe(false)
   expect(report.checks.some((check) => check.id === "bun" && check.status === "fail")).toBe(true)
+})
+
+test("doctor treats HERDR_ENV as a running server and notes a linked plugin", async () => {
+  const cwd = await tempDir()
+  const home = await tempDir()
+  const calls: string[][] = []
+  const report = await runDoctor({
+    env: { HERDR_ENV: "1" },
+    cwd,
+    home,
+    bunVersion: "1.3.13",
+    tty: true,
+    which: (command) => (command === "herdr" ? "/usr/bin/herdr" : null),
+    runHerdr: async (_bin, args) => {
+      calls.push(args)
+      if (args[0] === "--version") return { code: 0, stdout: "herdr 0.8.2\n", stderr: "" }
+      if (args[0] === "plugin") {
+        return {
+          code: 0,
+          stdout: JSON.stringify({ result: { plugins: [{ plugin_id: "htasks" }] } }),
+          stderr: "",
+        }
+      }
+      return { code: 1, stdout: "", stderr: "unexpected" }
+    },
+  })
+  expect(report.checks.some((check) => check.id === "herdr" && check.status === "ok")).toBe(true)
+  expect(
+    report.checks.some(
+      (check) => check.id === "herdr_server" && check.message.includes("HERDR_ENV=1"),
+    ),
+  ).toBe(true)
+  expect(report.checks.some((check) => check.id === "plugin" && check.status === "ok")).toBe(true)
+  expect(calls.some((args) => args[0] === "status")).toBe(false)
 })

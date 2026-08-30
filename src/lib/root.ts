@@ -44,14 +44,70 @@ export function walkAncestors(start: string): string[] {
   return dirs
 }
 
-export async function findBoardRoot(start = process.cwd()): Promise<string | null> {
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null
+}
+
+function pickPath(...values: unknown[]): string | null {
+  for (const value of values) {
+    if (typeof value === "string" && value.trim()) return value.trim()
+  }
+  return null
+}
+
+/** Workspace / worktree cwd from Herdr's plugin invocation context. */
+export function cwdFromPluginContextJson(raw: string | undefined | null): string | null {
+  if (!raw?.trim()) return null
+  try {
+    const parsed: unknown = JSON.parse(raw)
+    const root = asRecord(parsed)
+    if (!root) return null
+    const workspace = asRecord(root.workspace)
+    const worktree = asRecord(root.worktree) ?? asRecord(workspace?.worktree)
+    const pane =
+      asRecord(root.pane) ?? asRecord(root.focused_pane) ?? asRecord(root.focusedPane)
+    return pickPath(
+      worktree?.checkout_path,
+      worktree?.path,
+      worktree?.cwd,
+      worktree?.repo_root,
+      workspace?.cwd,
+      workspace?.path,
+      workspace?.root,
+      pane?.foreground_cwd,
+      pane?.cwd,
+      root.cwd,
+    )
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Directory to start walking for `.herdr-tasks/config.toml`.
+ * Order: HTASKS_ROOT, then workspace/worktree cwd from HERDR_PLUGIN_CONTEXT_JSON, then cwd.
+ */
+export function searchStart(
+  env: NodeJS.Dict<string | undefined> = process.env,
+  fallback = process.cwd(),
+): string {
+  const override = env.HTASKS_ROOT?.trim()
+  if (override) return resolve(override)
+  const fromContext = cwdFromPluginContextJson(env.HERDR_PLUGIN_CONTEXT_JSON)
+  if (fromContext) return resolve(fromContext)
+  return resolve(fallback)
+}
+
+export async function findBoardRoot(start = searchStart()): Promise<string | null> {
   for (const dir of walkAncestors(start)) {
     if (await pathExists(join(dir, DATA_DIR_NAME, CONFIG_NAME))) return dir
   }
   return null
 }
 
-export async function requireBoardRoot(start = process.cwd()): Promise<BoardPaths> {
+export async function requireBoardRoot(start = searchStart()): Promise<BoardPaths> {
   const root = await findBoardRoot(start)
   if (!root) {
     fail("No htasks board found. Run `htasks init` in this directory.")

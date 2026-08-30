@@ -3,7 +3,15 @@ import { mkdtemp, rm } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { mkdir } from "node:fs/promises"
-import { applySettings, loadConfig, parseConfig, resolveReviewSkillPath, setConfigValue } from "./config.ts"
+import {
+  applySettings,
+  loadConfig,
+  loadReviewPromptOrDefault,
+  loadReviewSkillText,
+  parseConfig,
+  resolveReviewSkillPath,
+  setConfigValue,
+} from "./config.ts"
 import { ensureDir } from "./fs.ts"
 import { REVIEW_PROMPT_REL, pathsFor } from "./root.ts"
 import { defaultConfigToml, stringifyConfig } from "./toml.ts"
@@ -291,6 +299,31 @@ test("defaultConfigToml points [review] prompt at the shipped prompt file", () =
   expect(config.review.prompt).toBe(REVIEW_PROMPT_REL)
 })
 
+test("loadReviewPromptOrDefault falls back to the packaged prompt when empty", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "htasks-cfg-"))
+  dirs.push(dir)
+  const paths = pathsFor(dir)
+  const text = await loadReviewPromptOrDefault(paths, "")
+  expect(text).toContain("Review the implementation against the task file.")
+})
+
+test("loadReviewPromptOrDefault uses the board review.md when prompt is empty", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "htasks-cfg-"))
+  dirs.push(dir)
+  const paths = pathsFor(dir)
+  await ensureDir(paths.promptsDir)
+  await Bun.write(paths.reviewPromptPath, "Board default review.\n")
+  expect(await loadReviewPromptOrDefault(paths, "")).toBe("Board default review.")
+  expect(await loadReviewPromptOrDefault(paths, "   ")).toBe("Board default review.")
+})
+
+test("loadReviewPromptOrDefault errors when a configured prompt file is missing", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "htasks-cfg-"))
+  dirs.push(dir)
+  const paths = pathsFor(dir)
+  await expect(loadReviewPromptOrDefault(paths, "missing.md")).rejects.toThrow(/Review prompt not found/)
+})
+
 test("unknown lane in config is an error", () => {
   expect(() =>
     parseConfig(`
@@ -372,5 +405,23 @@ test("resolveReviewSkillPath fails on an unknown skill name", async () => {
   dirs.push(dir)
   await expect(resolveReviewSkillPath(dir, "nope-skill", { home: dir })).rejects.toThrow(
     /Review skill not found: nope-skill/,
+  )
+})
+
+test("loadReviewSkillText returns undefined when skill is empty", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "htasks-skill-"))
+  dirs.push(dir)
+  expect(await loadReviewSkillText(dir, "", { home: dir })).toBeUndefined()
+  expect(await loadReviewSkillText(dir, "   ", { home: dir })).toBeUndefined()
+})
+
+test("loadReviewSkillText reads the skill file body", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "htasks-skill-"))
+  dirs.push(dir)
+  const skillFile = join(dir, ".agents/skills/thermo-nuclear-code-quality-review/SKILL.md")
+  await mkdir(join(dir, ".agents/skills/thermo-nuclear-code-quality-review"), { recursive: true })
+  await Bun.write(skillFile, "# thermo\nFollow this.\n")
+  expect(await loadReviewSkillText(dir, "thermo-nuclear-code-quality-review", { home: dir })).toBe(
+    "# thermo\nFollow this.",
   )
 })

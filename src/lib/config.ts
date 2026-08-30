@@ -3,7 +3,7 @@ import { isAbsolute, join, resolve } from "node:path"
 import { requireAgent } from "./agents.ts"
 import { fail } from "./errors.ts"
 import { isDirectory, pathExists, readText, writeFileAtomic } from "./fs.ts"
-import { pathsFor, walkAncestors, type BoardPaths } from "./root.ts"
+import { packagedReviewPromptPath, pathsFor, walkAncestors, type BoardPaths } from "./root.ts"
 import { parseThemeName, type ThemeName } from "./themes.ts"
 import { defaultConfigToml, stringifyConfig } from "./toml.ts"
 import { parseProjects } from "./projects.ts"
@@ -179,6 +179,34 @@ export async function loadReviewPromptText(boardRoot: string, prompt: string): P
   if (!path) return undefined
   const text = (await readText(path)).trim()
   return text || undefined
+}
+
+export async function loadReviewSkillText(
+  boardRoot: string,
+  skill: string,
+  opts: { home?: string } = {},
+): Promise<string | undefined> {
+  const path = await resolveReviewSkillPath(boardRoot, skill, opts)
+  if (!path) return undefined
+  const text = (await readText(path)).trim()
+  return text || undefined
+}
+
+async function readExistingPrompt(path: string): Promise<string | undefined> {
+  if (!(await pathExists(path))) return undefined
+  const text = (await readText(path)).trim()
+  return text || undefined
+}
+
+export async function loadReviewPromptOrDefault(
+  paths: BoardPaths,
+  prompt: string,
+): Promise<string | undefined> {
+  const trimmed = prompt.trim()
+  if (trimmed) return loadReviewPromptText(paths.boardRoot, trimmed)
+  const board = await readExistingPrompt(paths.reviewPromptPath)
+  if (board) return board
+  return readExistingPrompt(packagedReviewPromptPath())
 }
 
 export function parseConfig(text: string): Config {

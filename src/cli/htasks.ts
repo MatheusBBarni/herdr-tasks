@@ -21,8 +21,8 @@ import {
 import { formatTable } from "../lib/table.ts"
 import { basename } from "../lib/text.ts"
 import { LANES, type Lane, type Task } from "../lib/types.ts"
+import pkg from "../../package.json" with { type: "json" }
 
-const pkg = await Bun.file(new URL("../../package.json", import.meta.url)).json() as { version: string }
 
 function writeOut(text: string): void {
   process.stdout.write(text.endsWith("\n") ? text : `${text}\n`)

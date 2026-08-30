@@ -1,11 +1,14 @@
 import { requireAgent } from "./agents.ts"
-import { loadConfig, loadReviewPromptText, resolveReviewSkillPath, reviewAgentKey } from "./config.ts"
+import { loadConfig, loadReviewPromptOrDefault, loadReviewSkillText, reviewAgentKey } from "./config.ts"
 import { fail } from "./errors.ts"
 import {
   defaultRunner,
+  ensureHerdrServer,
   HerdrError,
   herdrPaneAlive,
   launchInProgress,
+  promptAgentInPane,
+  resolveHerdrBin,
   reviewPrompt,
   type HerdrRunner,
 } from "./herdr.ts"
@@ -41,6 +44,7 @@ export async function moveTaskDetailed(
   const config = await loadConfig(paths)
   const previous = await getTask(paths, id)
   const runner = opts.runner ?? defaultRunner
+  const bin = resolveHerdrBin(config.herdr_bin)
 
   if (previous.status === lane && !isLaunchLane(lane)) {
     return { task: previous }
@@ -63,13 +67,15 @@ export async function moveTaskDetailed(
 
   if (!isLaunchLane(lane)) return { task: next }
 
-  const reusePane = Boolean(next.herdr.pane_id) && (lane !== "review" || previous.status === "review")
-  if (reusePane && next.herdr.pane_id) {
-    const alive = await herdrPaneAlive(config.herdr_bin, next.herdr.pane_id, runner)
-    if (alive) return { task: next }
-    next.herdr = { ...EMPTY_HERDR }
-    next.updated = new Date().toISOString()
-    await writeTask(next)
+  if (next.herdr.pane_id) {
+    const alive = await herdrPaneAlive(bin, next.herdr.pane_id, runner)
+    const skipLaunch = alive && (lane === "in_progress" || previous.status === "review")
+    if (skipLaunch) return { task: next }
+    if (!alive) {
+      next.herdr = { ...EMPTY_HERDR }
+      next.updated = new Date().toISOString()
+      await writeTask(next)
+    }
   }
 
   if (opts.launch === false) return { task: next, pendingLaunch: lane }
@@ -86,6 +92,21 @@ export async function moveTaskDetailed(
 
 type LaunchOpts = { runner?: HerdrRunner; config?: Awaited<ReturnType<typeof loadConfig>> }
 
+async function buildReviewPrompt(
+  paths: BoardPaths,
+  config: Awaited<ReturnType<typeof loadConfig>>,
+  taskId: string,
+): Promise<string> {
+  const text = reviewPrompt({
+    skill: await loadReviewSkillText(paths.boardRoot, config.review.skill),
+    prompt: await loadReviewPromptOrDefault(paths, config.review.prompt),
+  }).replaceAll("<id>", taskId)
+  if (!text) {
+    fail("Review prompt is empty. Set [review] prompt or add .herdr-tasks/prompts/review.md.")
+  }
+  return text
+}
+
 async function completeLaunch(
   lane: "in_progress" | "review",
   paths: BoardPaths,
@@ -93,26 +114,40 @@ async function completeLaunch(
   opts: LaunchOpts = {},
 ): Promise<MoveResult> {
   const config = opts.config ?? (await loadConfig(paths))
+  const runner = opts.runner ?? defaultRunner
+  const bin = resolveHerdrBin(config.herdr_bin)
   const agentKey = lane === "review" ? reviewAgentKey(config, task.agent) : task.agent
   const agent = requireAgent(config, agentKey)
   const project = await resolveProjectPath(paths.boardRoot, task.project)
-  let prompt: string | undefined
-  if (lane === "review") {
-    await resolveReviewSkillPath(paths.boardRoot, config.review.skill)
-    prompt = reviewPrompt({
-      skill: config.review.skill,
-      prompt: await loadReviewPromptText(paths.boardRoot, config.review.prompt),
-    })
+  const prompt = lane === "review" ? await buildReviewPrompt(paths, config, task.id) : undefined
+
+  if (lane === "review" && task.herdr.pane_id && prompt) {
+    const paneId = task.herdr.pane_id
+    if (await herdrPaneAlive(bin, paneId, runner)) {
+      await ensureHerdrServer(bin, runner)
+      const sent = await promptAgentInPane({
+        bin,
+        paneId,
+        prompt,
+        runner,
+        notReadyWarning: `Herdr has not detected an agent in ${paneId} yet. Review prompt not sent.`,
+      })
+      task.project = project
+      task.status = lane
+      const saved = await saveTask(task)
+      return { task: saved, warning: sent.warning }
+    }
   }
+
   const launched = await launchInProgress({
-    bin: config.herdr_bin,
+    bin,
     task: { ...task, project, filePath: task.filePath },
     agent,
     agentKey,
     skillPath: paths.skillPath,
     prompt,
     behavior: config.herdr_behavior,
-    runner: opts.runner,
+    runner,
     boardRoot: paths.boardRoot,
   })
   task.project = project

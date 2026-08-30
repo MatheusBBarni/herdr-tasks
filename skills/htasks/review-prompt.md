@@ -6,3 +6,4 @@ Review the implementation against the task file.
 - The code matches surrounding style and naming
 
 Stay in scope. If the work is not ready, say what is missing and do not move the task.
+When the review passes: `htasks move <id> done`.

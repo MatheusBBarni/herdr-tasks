@@ -1,0 +1,25 @@
+id = "htasks"
+name = "htasks"
+version = "0.1.0"
+min_herdr_version = "0.8.2"
+description = "Kanban for Herdr: markdown tasks, OpenTUI board, htasks CLI."
+platforms = ["linux", "macos"]
+
+[[build]]
+command = ["bash", "scripts/plugin-build.sh"]
+
+[[build]]
+command = ["bash", "scripts/install-cli.sh"]
+
+[[panes]]
+id = "board"
+title = "htasks"
+placement = "overlay"
+command = ["bash", "scripts/run-board.sh"]
+
+[[actions]]
+id = "open-board"
+title = "Open htasks board"
+description = "Open the htasks Kanban as an overlay pane (focus/toggle if already open)."
+contexts = ["workspace", "pane"]
+command = ["bash", "scripts/open-board.sh"]

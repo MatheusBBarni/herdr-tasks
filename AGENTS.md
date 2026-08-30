@@ -179,15 +179,15 @@ Shared hook. Do not invent Herdr APIs. Capture IDs from JSON.
 
 ## Move → `review` (TUI and `htasks move`)
 
-Shared hook. Same Herdr launch as `in_progress`, then a review prompt.
+Shared hook. Reuse a live implementer pane when present; otherwise the same Herdr launch as `in_progress`, then a review prompt.
 
 1. Write `status=review`.
 2. `herdr` must be on PATH; on failure revert/keep prior status and print error.
 3. Resolve agent from `[review] agent` if set, else the task agent. Unknown key → error.
-4. If `worktree` is yes, reuse/create the task worktree then create layout from `[herdr] behavior`. Otherwise create layout in the task project.
-5. Start that agent's `command` in the new pane. Do not reuse the in_progress pane.
-6. `herdr agent prompt …` with `[review] skill` name/text (if set), then the `[review] prompt` file body (if set).
-7. Missing `[review] skill` name/path or `[review] prompt` path → error and revert.
+4. If a live `herdr.pane_id` exists, reuse it. Do **not** create another Herdr layout (`workspace` / `tab` / `pane`).
+5. Only if there is no live pane: if `worktree` is yes, reuse/create the task worktree then create layout from `[herdr] behavior`; otherwise create layout in the task project and start that agent's `command`.
+6. `herdr agent prompt …` with the `[review] skill` file body (if set), then the `[review] prompt` file body. Empty prompt uses `.herdr-tasks/prompts/review.md`.
+7. Missing `[review] skill` name/path or `[review] prompt` path (when set) → error and revert.
 8. If already `review` and `herdr.pane_id` is still alive, only update status (idempotent).
 9. Leaving `review` does **not** kill Herdr in MVP.
 

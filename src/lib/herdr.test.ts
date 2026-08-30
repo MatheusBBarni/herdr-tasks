@@ -18,6 +18,8 @@ import {
   parseCreatedLayout,
   parsePaneInfo,
   parseWorkspaceCreate,
+  ensureHerdrServer,
+  resolveHerdrBin,
   type HerdrRunner,
 } from "./herdr.ts"
 import type { Task } from "./types.ts"
@@ -169,15 +171,15 @@ test("first prompt names htasks and herdr", () => {
   expect(firstPrompt(sample, "/tmp/SKILL.md", "pane")).toContain("this pane")
 })
 
-test("review prompt is the skill name then the prompt file", () => {
+test("review prompt is the skill text then the prompt file", () => {
   expect(
     reviewPrompt({
-      skill: "thermo-nuclear-code-quality-review",
+      skill: "# thermo\nBe harsh about structure.",
       prompt: "Check the diff for regressions.",
     }),
-  ).toBe("thermo-nuclear-code-quality-review\nCheck the diff for regressions.")
+  ).toBe("# thermo\nBe harsh about structure.\n\nCheck the diff for regressions.")
   expect(reviewPrompt({ prompt: "Only the file." })).toBe("Only the file.")
-  expect(reviewPrompt({ skill: "review" })).toBe("review")
+  expect(reviewPrompt({ skill: "# review" })).toBe("# review")
   expect(reviewPrompt({})).toBe("")
 })
 
@@ -455,4 +457,45 @@ test("closeTaskLayout refuses to close the caller's layout", async () => {
     }),
   ).rejects.toThrow("Refusing to close the current workspace")
   expect(calls).toEqual([["--version"]])
+})
+
+test("resolveHerdrBin prefers HERDR_BIN_PATH then config then herdr", () => {
+  expect(resolveHerdrBin("from-config", { HERDR_BIN_PATH: "/opt/herdr" })).toBe("/opt/herdr")
+  expect(resolveHerdrBin("from-config", {})).toBe("from-config")
+  expect(resolveHerdrBin("  ", {})).toBe("herdr")
+  expect(resolveHerdrBin(undefined, {})).toBe("herdr")
+})
+
+test("ensureHerdrServer skips status and start when HERDR_ENV=1", async () => {
+  const calls: string[][] = []
+  const runner: HerdrRunner = async (_bin, args) => {
+    calls.push(args)
+    return { code: 0, stdout: "0.8.2", stderr: "" }
+  }
+  await ensureHerdrServer("herdr", runner, { HERDR_ENV: "1" })
+  expect(calls).toEqual([["--version"]])
+})
+
+test("ensureHerdrServer starts the server when status is not running", async () => {
+  const calls: string[][] = []
+  let polls = 0
+  const runner: HerdrRunner = async (_bin, args) => {
+    calls.push(args)
+    if (args[0] === "--version") return { code: 0, stdout: "0.8.2", stderr: "" }
+    if (args[0] === "status") {
+      polls += 1
+      const running = polls > 1
+      return {
+        code: 0,
+        stdout: JSON.stringify({ server: { running, status: running ? "running" : "stopped" } }),
+        stderr: "",
+      }
+    }
+    if (args[0] === "server") return { code: 0, stdout: "", stderr: "" }
+    return { code: 1, stdout: "", stderr: "unexpected" }
+  }
+  await ensureHerdrServer("herdr", runner, {})
+  expect(calls[0]).toEqual(["--version"])
+  expect(calls.some((args) => args[0] === "server")).toBe(true)
+  expect(calls.some((args) => args[0] === "status")).toBe(true)
 })

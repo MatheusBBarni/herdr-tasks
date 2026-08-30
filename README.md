@@ -45,6 +45,44 @@ bun run src/cli/htasks.ts board
 TUI and CLI share that root.
 Every command except `init` fails if no board exists.
 
+When hosted as a Herdr plugin, discovery starts at `HTASKS_ROOT`, then the workspace/worktree cwd from `HERDR_PLUGIN_CONTEXT_JSON`, then `process.cwd()`.
+
+## Herdr plugin
+
+htasks is also a Herdr plugin: the existing CLI+TUI, opened as an overlay pane.
+Do not rewrite it, and do not replace the `htasks` CLI — plugin actions cannot pass extra args.
+
+Local authoring (`plugin link` does **not** run `[[build]]`):
+
+```bash
+herdr plugin link /path/to/herdr-tasks
+herdr plugin action invoke open-board --plugin htasks
+```
+
+GitHub install (runs `[[build]]`: compile or `bun install`, then copy `htasks` to `~/.local/bin`):
+
+```bash
+herdr plugin install <owner>/herdr-tasks
+```
+
+Put `~/.local/bin` on `PATH` so agents can still run `htasks`.
+Override the copy destination with `HTASKS_CLI_INSTALL_DIR`.
+Linked checkouts keep using `bun link` / `bun run src/cli/htasks.ts`.
+
+Optional keybinding in `~/.config/herdr/config.toml` (not written by install):
+
+```toml
+[[keys.command]]
+key = "prefix+t"
+type = "plugin_action"
+command = "htasks.open-board"
+description = "open htasks board"
+```
+
+`q` / Ctrl+C in the overlay calls `renderer.destroy()` and restores the previous pane.
+Agents keep using `htasks move …`; they should not call `herdr plugin action invoke` for lane changes.
+
+
 ## Names
 
 | Name | Meaning |
@@ -181,7 +219,7 @@ The task file still stores the resolved path.
 
 ## Herdr layout
 
-`[herdr] behavior` in `.herdr-tasks/config.toml` chooses where a card goes when it enters In Progress or Review:
+`[herdr] behavior` in `.herdr-tasks/config.toml` chooses where a card goes when it enters In Progress (and Review only when there is no live pane):
 
 | Value | Herdr command |
 |-------|----------------|
@@ -275,7 +313,9 @@ When complete: `htasks move <id> review`.
 ## Review lane
 
 After In Progress, move the card to **Review**.
-That starts a **new** Herdr layout (it does not reuse the implementer pane) and sends `[review] skill` (the name/text) then the `[review] prompt` file.
+That reuses the existing Herdr pane (it does not open another workspace/tab/pane) and sends the `[review] skill` file body (if set) then the `[review] prompt` file.
+If the card has no live pane, it creates a layout like In Progress.
+Empty `[review] prompt` uses the default `.herdr-tasks/prompts/review.md`.
 
 Configure it in `.herdr-tasks/config.toml`:
 
@@ -317,9 +357,14 @@ Source of truth is markdown + YAML frontmatter, not the cache.
   There is no auto-kill.
   Press `c` on a done card to close the stored pane, tab, or workspace.
 - If a pane is already stored on the task and still alive, `move in_progress` only updates status.
-- `move review` always starts a new layout when coming from another lane. If the task is already in review and the pane is alive, it only updates status.
+- `move review` reuses a live pane from in_progress and sends the review prompt there. It only creates a new layout when there is no live pane. If the task is already in review and the pane is alive, it only updates status.
 - If the Herdr server is down, htasks tries `herdr server` once and retries.
   If that fails, start Herdr yourself and retry the move.
+  Inside Herdr (`HERDR_ENV=1`) it does not start a server; it uses `$HERDR_BIN_PATH`.
+- `herdr plugin action invoke` cannot pass extra args.
+  Keep using the `htasks` CLI.
+  `plugin install` copies `htasks` to `~/.local/bin` (not on `plugin link`).
+- Press `q` to close the overlay before `o` if the board is covering the task layout.
 - `htasks config set` rewrites `config.toml` and drops comments.
 - `NO_COLOR` and `TERM=dumb` disable color.
   Status is always written as text, not color-only.
@@ -330,4 +375,8 @@ Source of truth is markdown + YAML frontmatter, not the cache.
 ```bash
 bun test
 bun run typecheck
+herdr plugin link .
+herdr plugin action invoke open-board --plugin htasks
 ```
+
+Tag the GitHub repo `herdr-plugin` when publishing to [herdr.dev/plugins](https://herdr.dev/plugins/).

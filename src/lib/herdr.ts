@@ -281,6 +281,21 @@ async function runJson(runner: HerdrRunner, bin: string, args: string[]): Promis
   return parseJson(result.stdout)
 }
 
+export function runningInsideHerdr(env: NodeJS.Dict<string | undefined> = process.env): boolean {
+  return env.HERDR_ENV === "1"
+}
+
+export function resolveHerdrBin(
+  configBin?: string | null,
+  env: NodeJS.Dict<string | undefined> = process.env,
+): string {
+  const fromEnv = env.HERDR_BIN_PATH?.trim()
+  if (fromEnv) return fromEnv
+  const fromConfig = configBin?.trim()
+  if (fromConfig) return fromConfig
+  return "herdr"
+}
+
 export async function herdrAvailable(bin: string, runner: HerdrRunner = defaultRunner): Promise<void> {
   try {
     await runner(bin, ["--version"])
@@ -298,8 +313,10 @@ export async function herdrAvailable(bin: string, runner: HerdrRunner = defaultR
 export async function ensureHerdrServer(
   bin: string,
   runner: HerdrRunner = defaultRunner,
+  env: NodeJS.Dict<string | undefined> = process.env,
 ): Promise<void> {
   await herdrAvailable(bin, runner)
+  if (runningInsideHerdr(env)) return
   const status = await runner(bin, ["status", "--json"])
   if (status.code === 0) {
     try {
@@ -605,7 +622,7 @@ export function firstPrompt(task: Task, skillPath: string, behavior: HerdrBehavi
 export function reviewPrompt(opts: { skill?: string; prompt?: string } = {}): string {
   const skill = opts.skill?.trim() ?? ""
   const prompt = opts.prompt?.trim() ?? ""
-  return [skill, prompt].filter(Boolean).join("\n")
+  return [skill, prompt].filter(Boolean).join("\n\n")
 }
 
 async function waitForAgentOnPane(
@@ -627,6 +644,45 @@ async function waitForAgentOnPane(
   }
 }
 
+export async function promptAgentInPane(opts: {
+  bin: string
+  paneId: string
+  prompt: string
+  runner?: HerdrRunner
+  detectTimeoutMs?: number
+  notReadyWarning: string
+}): Promise<{ warning?: string }> {
+  const runner = opts.runner ?? defaultRunner
+  const detectMs = opts.detectTimeoutMs ?? 30_000
+  const ready = await waitForAgentOnPane(runner, opts.bin, opts.paneId, detectMs)
+  if (!ready) return { warning: opts.notReadyWarning }
+
+  await runner(opts.bin, ["agent", "wait", opts.paneId, "--until", "idle", "--timeout", String(detectMs)])
+
+  const prompt = await runner(opts.bin, ["agent", "prompt", opts.paneId, opts.prompt])
+  if (prompt.code !== 0) {
+    const typed = await runner(opts.bin, ["agent", "send-keys", opts.paneId, "enter"])
+    if (typed.code !== 0) {
+      const detail = prompt.stderr.trim() || prompt.stdout.trim() || "herdr agent prompt failed"
+      return { warning: detail }
+    }
+  }
+
+  const working = await runner(opts.bin, [
+    "agent",
+    "wait",
+    opts.paneId,
+    "--until",
+    "working",
+    "--timeout",
+    "5000",
+  ])
+  if (working.code !== 0) {
+    await runner(opts.bin, ["agent", "send-keys", opts.paneId, "enter"])
+  }
+  return {}
+}
+
 export async function launchInProgress(opts: {
   bin: string
   task: Task
@@ -645,7 +701,7 @@ export async function launchInProgress(opts: {
   const behavior = opts.behavior ?? "workspace"
   const { bin, task, agent } = opts
   try {
-    await ensureHerdrServer(bin, runner)
+    await ensureHerdrServer(bin, runner, env)
   } catch (err) {
     if (err instanceof HerdrError) throw err
     throw new HerdrError(err instanceof Error ? err.message : String(err))
@@ -680,7 +736,7 @@ export async function launchInProgress(opts: {
       created = parseCreatedLayout(await runJson(runner, bin, createArgs), behavior)
     } catch (err) {
       if (err instanceof HerdrError && /not running|server/i.test(err.message + err.stderr)) {
-        await ensureHerdrServer(bin, runner)
+        await ensureHerdrServer(bin, runner, env)
         created = parseCreatedLayout(await runJson(runner, bin, createArgs), behavior)
       } else {
         throw err
@@ -707,45 +763,13 @@ export async function launchInProgress(opts: {
     }
   }
 
-  const detectMs = opts.detectTimeoutMs ?? 30_000
-  const ready = await waitForAgentOnPane(
-    runner,
+  const prompted = await promptAgentInPane({
     bin,
-    created.pane_id,
-    detectMs,
-  )
-  if (!ready) {
-    return {
-      herdr,
-      warning: `Started ${runCommand} in ${created.pane_id}, but Herdr has not detected an agent yet. First prompt not sent.`,
-    }
-  }
-
-  await runner(bin, ["agent", "wait", created.pane_id, "--until", "idle", "--timeout", String(detectMs)])
-
-  const promptText =
-    opts.prompt ?? firstPrompt({ ...task, project: layoutTask.project }, opts.skillPath, behavior)
-  const prompt = await runner(bin, ["agent", "prompt", created.pane_id, promptText])
-  if (prompt.code !== 0) {
-    const typed = await runner(bin, ["agent", "send-keys", created.pane_id, "enter"])
-    if (typed.code !== 0) {
-      const detail = prompt.stderr.trim() || prompt.stdout.trim() || "herdr agent prompt failed"
-      return { herdr, warning: detail }
-    }
-  }
-
-  const working = await runner(bin, [
-    "agent",
-    "wait",
-    created.pane_id,
-    "--until",
-    "working",
-    "--timeout",
-    "5000",
-  ])
-  if (working.code !== 0) {
-    await runner(bin, ["agent", "send-keys", created.pane_id, "enter"])
-  }
-
-  return { herdr }
+    paneId: created.pane_id,
+    prompt: opts.prompt ?? firstPrompt({ ...task, project: layoutTask.project }, opts.skillPath, behavior),
+    runner,
+    detectTimeoutMs: opts.detectTimeoutMs,
+    notReadyWarning: `Started ${runCommand} in ${created.pane_id}, but Herdr has not detected an agent yet. First prompt not sent.`,
+  })
+  return { herdr, warning: prompted.warning }
 }

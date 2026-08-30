@@ -3,6 +3,7 @@
 Use **only** `htasks` to read and update tasks. Never edit `.herdr-tasks/tasks/*.md` by hand.
 
 `htasks` is the board CLI. `herdr` is the multiplexer already running this pane. `.herdr-tasks` is the data dir.
+Humans may open the board with `herdr plugin action invoke open-board --plugin htasks` (or a keybinding for `htasks.open-board`). Agents still use only this CLI — plugin actions cannot pass extra args.
 
 ## Commands
 

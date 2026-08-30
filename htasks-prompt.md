@@ -205,10 +205,10 @@ Lanes: `backlog` | `in_progress` | `review` | `done`
 1. Write `status=review`
 2. `herdr` must be on PATH; on failure revert/keep prior status and print error
 3. Resolve agent from `[review] agent` if set, else the task agent
-4. Create a new Herdr layout (do not reuse the in_progress pane). Worktree yes reuses the task checkout
-5. Start that agent's `command` in the pane
-6. Prompt with `[review] skill` name/text (if set), then the contents of the `[review] prompt` file (if set)
-7. Missing `[review] skill` or `[review] prompt` path is an error
+4. If a live `herdr.pane_id` exists, reuse it. Do not create another Herdr layout
+5. Only if there is no live pane: create a Herdr layout from `[herdr] behavior` and start that agent's `command`. Worktree yes reuses the task checkout
+6. Prompt with the contents of `[review] skill` (if set), then the contents of the `[review] prompt` file. Empty prompt uses `.herdr-tasks/prompts/review.md`
+7. Missing `[review] skill` or `[review] prompt` path (when set) is an error
 8. If already `review` and `herdr.pane_id` is still alive, only update status (idempotent)
 9. Leaving `review` does not kill Herdr in MVP
 
@@ -247,7 +247,7 @@ When complete: `htasks move <id> review`.
 ### Review agent prompt template
 
 ```text
-<skill name>          # [review] skill, if set
+<skill file body>     # contents of [review] skill, if set
 <prompt file body>    # contents of [review] prompt, if set
 ```
 

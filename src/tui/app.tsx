@@ -4,7 +4,7 @@ import { agentKeys } from "../lib/agents.ts"
 import { listedProjects } from "../lib/projects.ts"
 import { applySettings } from "../lib/config.ts"
 import { CliError } from "../lib/errors.ts"
-import { closeTaskLayout, focusTaskLayout, hasHerdrLayout } from "../lib/herdr.ts"
+import { closeTaskLayout, focusTaskLayout, hasHerdrLayout, resolveHerdrBin } from "../lib/herdr.ts"
 import { completeInProgressLaunch, completeReviewLaunch, moveTask, moveTaskDetailed } from "../lib/move.ts"
 import type { BoardPaths } from "../lib/root.ts"
 import { applyReorder, tasksInLane } from "../lib/order.ts"
@@ -99,7 +99,8 @@ export function App(props: AppProps) {
 
   const tooSmall = width < 40 || height < 10
   const singlePane = width < 80
-  const agentStatuses = useAgentStatuses(screen === "board" && !tooSmall, config.herdr_bin, tasks)
+  const herdrBin = resolveHerdrBin(config.herdr_bin)
+  const agentStatuses = useAgentStatuses(screen === "board" && !tooSmall, herdrBin, tasks)
   const activeTheme = previewTheme ?? config.theme ?? DEFAULT_THEME
   const palette = THEMES[activeTheme] ?? THEMES[DEFAULT_THEME]
 
@@ -213,13 +214,13 @@ export function App(props: AppProps) {
       return
     }
     void focusTaskLayout({
-      bin: config.herdr_bin,
+      bin: herdrBin,
       task,
       behavior: config.herdr_behavior,
     })
       .then((result) => showToast(`focused ${result.noun} ${result.id}`))
       .catch((err) => showToast(err instanceof Error ? err.message : String(err), "error"))
-  }, [config.herdr_behavior, config.herdr_bin, focusedId, showToast])
+  }, [config.herdr_behavior, focusedId, herdrBin, showToast])
 
   const closeHerdr = useCallback(() => {
     const task = tasksRef.current.find((item) => item.id === focusedId)
@@ -234,7 +235,7 @@ export function App(props: AppProps) {
     if (closingRef.current) return
     closingRef.current = true
     void closeTaskLayout({
-      bin: config.herdr_bin,
+      bin: herdrBin,
       task,
       behavior: config.herdr_behavior,
     })
@@ -256,7 +257,7 @@ export function App(props: AppProps) {
       .finally(() => {
         closingRef.current = false
       })
-  }, [config.herdr_behavior, config.herdr_bin, focusedId, showToast])
+  }, [config.herdr_behavior, focusedId, herdrBin, showToast])
 
   const openEdit = useCallback(() => {
     const task = tasksRef.current.find((item) => item.id === focusedId)

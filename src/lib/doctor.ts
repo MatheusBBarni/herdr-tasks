@@ -3,9 +3,9 @@ import { join, resolve } from "node:path"
 import { colorEnabled, paint } from "./color.ts"
 import { parseConfig, resolveReviewPromptPath, resolveReviewSkillPath } from "./config.ts"
 import { isDirectory, pathExists, readText } from "./fs.ts"
-import { defaultRunner, isServerRunning, type HerdrRunner } from "./herdr.ts"
+import { defaultRunner, isServerRunning, resolveHerdrBin, runningInsideHerdr, type HerdrRunner } from "./herdr.ts"
 import { findProject, listedProjects } from "./projects.ts"
-import { findBoardRoot, packagedReviewPromptPath, packagedSkillPath, pathsFor, walkAncestors } from "./root.ts"
+import { findBoardRoot, packagedReviewPromptPath, packagedSkillPath, pathsFor, searchStart, walkAncestors } from "./root.ts"
 
 export type DoctorStatus = "ok" | "warn" | "fail"
 
@@ -30,6 +30,7 @@ export type DoctorEnv = {
   tty?: boolean
   which?: (command: string) => string | null
   runHerdr?: HerdrRunner
+  env?: NodeJS.Dict<string | undefined>
 }
 
 const MIN_BUN = "1.3.0"
@@ -85,8 +86,40 @@ async function existingFiles(paths: string[]): Promise<string[]> {
   return found
 }
 
+function pluginIdsFromList(payload: unknown): string[] {
+  const root = payload && typeof payload === "object" ? (payload as Record<string, unknown>) : {}
+  const result =
+    root.result && typeof root.result === "object" ? (root.result as Record<string, unknown>) : root
+  const plugins = result.plugins
+  if (!Array.isArray(plugins)) return []
+  const ids: string[] = []
+  for (const item of plugins) {
+    if (!item || typeof item !== "object") continue
+    const rec = item as Record<string, unknown>
+    for (const key of ["plugin_id", "id"] as const) {
+      const value = rec[key]
+      if (typeof value === "string" && value.trim()) {
+        ids.push(value.trim())
+        break
+      }
+    }
+  }
+  return ids
+}
+
+async function resolveBinPath(
+  bin: string,
+  which: (command: string) => string | null,
+): Promise<string | null> {
+  if (bin.includes("/") || bin.includes("\\")) {
+    return (await pathExists(bin)) ? bin : null
+  }
+  return which(bin)
+}
+
 export async function runDoctor(env: DoctorEnv = {}): Promise<DoctorReport> {
-  const cwd = env.cwd ?? process.cwd()
+  const procEnv = env.env ?? process.env
+  const cwd = env.cwd ?? searchStart(procEnv)
   const home = env.home ?? homedir()
   const bunVersion = env.bunVersion ?? process.versions.bun
   const tty = env.tty ?? Boolean(process.stdin.isTTY && process.stdout.isTTY)
@@ -117,13 +150,13 @@ export async function runDoctor(env: DoctorEnv = {}): Promise<DoctorReport> {
   }
 
   const boardRoot = await findBoardRoot(cwd)
-  let herdrBin = "herdr"
+  let herdrBin = resolveHerdrBin(undefined, procEnv)
   if (boardRoot) {
     const paths = pathsFor(boardRoot)
     add({ id: "board", status: "ok", message: `board ${paths.dataDir}` })
     try {
       const config = parseConfig(await readText(paths.configPath))
-      herdrBin = config.herdr_bin || "herdr"
+      herdrBin = resolveHerdrBin(config.herdr_bin, procEnv)
       add({
         id: "config",
         status: "ok",
@@ -289,7 +322,7 @@ export async function runDoctor(env: DoctorEnv = {}): Promise<DoctorReport> {
     })
   }
 
-  const herdrPath = which(herdrBin)
+  const herdrPath = await resolveBinPath(herdrBin, which)
   if (!herdrPath) {
     add({
       id: "herdr",
@@ -312,24 +345,46 @@ export async function runDoctor(env: DoctorEnv = {}): Promise<DoctorReport> {
         status: "ok",
         message: `${version.stdout.trim() || herdrBin}  ${herdrPath}`,
       })
-      const status = await runHerdr(herdrBin, ["status", "--json"])
-      let running = false
-      if (status.code === 0) {
-        try {
-          running = isServerRunning(JSON.parse(status.stdout))
-        } catch {
-          running = false
+      if (runningInsideHerdr(procEnv)) {
+        add({ id: "herdr_server", status: "ok", message: "HERDR_ENV=1 (already inside Herdr)" })
+      } else {
+        const status = await runHerdr(herdrBin, ["status", "--json"])
+        let running = false
+        if (status.code === 0) {
+          try {
+            running = isServerRunning(JSON.parse(status.stdout))
+          } catch {
+            running = false
+          }
+        }
+        if (running) {
+          add({ id: "herdr_server", status: "ok", message: "herdr server running" })
+        } else {
+          add({
+            id: "herdr_server",
+            status: "warn",
+            message: "herdr server not running",
+            hint: "Start herdr once in a terminal. htasks move will try to start it.",
+          })
         }
       }
-      if (running) {
-        add({ id: "herdr_server", status: "ok", message: "herdr server running" })
-      } else {
-        add({
-          id: "herdr_server",
-          status: "warn",
-          message: "herdr server not running",
-          hint: "Start herdr once in a terminal. htasks move will try to start it.",
-        })
+      const listed = await runHerdr(herdrBin, ["plugin", "list"])
+      if (listed.code === 0 && listed.stdout.trim()) {
+        try {
+          const ids = pluginIdsFromList(JSON.parse(listed.stdout))
+          if (ids.includes("htasks")) {
+            add({ id: "plugin", status: "ok", message: "htasks plugin linked" })
+          } else {
+            add({
+              id: "plugin",
+              status: "warn",
+              message: "htasks plugin not linked",
+              hint: "herdr plugin link <this repo>  then  herdr plugin action invoke open-board --plugin htasks",
+            })
+          }
+        } catch {
+          // plugin list is optional
+        }
       }
     }
   }
