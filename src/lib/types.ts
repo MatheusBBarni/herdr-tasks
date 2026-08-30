@@ -54,6 +54,12 @@ export type HerdrMeta = {
   agent_name: string | null
 }
 
+export const EMPTY_HERDR: HerdrMeta = {
+  workspace_id: null,
+  pane_id: null,
+  agent_name: null,
+}
+
 export type Task = {
   id: string
   title: string

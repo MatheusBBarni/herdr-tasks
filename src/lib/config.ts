@@ -1,9 +1,9 @@
 import { homedir } from "node:os"
-import { dirname, isAbsolute, join, resolve } from "node:path"
+import { isAbsolute, join, resolve } from "node:path"
 import { requireAgent } from "./agents.ts"
 import { fail } from "./errors.ts"
 import { isDirectory, pathExists, readText, writeFileAtomic } from "./fs.ts"
-import { pathsFor, type BoardPaths } from "./root.ts"
+import { pathsFor, walkAncestors, type BoardPaths } from "./root.ts"
 import { parseThemeName, type ThemeName } from "./themes.ts"
 import { defaultConfigToml, stringifyConfig } from "./toml.ts"
 import { parseProjects } from "./projects.ts"
@@ -115,19 +115,12 @@ export function reviewSkillCandidates(
   boardRoot: string,
   home = homedir(),
 ): string[] {
-  const fromWalk: string[] = []
-  let dir = resolve(boardRoot)
-  while (true) {
-    fromWalk.push(
-      join(dir, ".agents/skills", name, "SKILL.md"),
-      join(dir, ".claude/skills", name, "SKILL.md"),
-      join(dir, ".herdr-tasks/skills", name, "SKILL.md"),
-      join(dir, "skills", name, "SKILL.md"),
-    )
-    const parent = dirname(dir)
-    if (parent === dir) break
-    dir = parent
-  }
+  const fromWalk = walkAncestors(boardRoot).flatMap((dir) => [
+    join(dir, ".agents/skills", name, "SKILL.md"),
+    join(dir, ".claude/skills", name, "SKILL.md"),
+    join(dir, ".herdr-tasks/skills", name, "SKILL.md"),
+    join(dir, "skills", name, "SKILL.md"),
+  ])
   const fromHome = [
     join(home, ".claude/skills", name, "SKILL.md"),
     join(home, ".agents/skills", name, "SKILL.md"),
@@ -289,9 +282,13 @@ export type SettingsPatch = {
 export async function applySettings(paths: BoardPaths, patch: SettingsPatch): Promise<Config> {
   const config = await loadConfig(paths)
   requireAgent(config, patch.default_agent)
+  const project = patch.default_project.trim()
+  if (project && !(await isDirectory(project))) {
+    fail(`Project path does not exist: ${project}`)
+  }
   config.theme = parseThemeName(patch.theme)
   config.default_agent = patch.default_agent
-  config.default_project = patch.default_project.trim()
+  config.default_project = project
   if (!isHerdrBehavior(patch.herdr_behavior)) {
     fail(`Invalid herdr.behavior '${patch.herdr_behavior}'. Use ${HERDR_BEHAVIORS.join(", ")}.`)
   }

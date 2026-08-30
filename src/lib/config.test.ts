@@ -137,6 +137,23 @@ test("setConfigValue theme canonicalizes aliases", async () => {
   expect(await Bun.file(paths.configPath).text()).toContain('theme = "catppuccin_light"')
 })
 
+test("applySettings rejects a missing default project path", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "htasks-cfg-"))
+  dirs.push(dir)
+  const paths = pathsFor(dir)
+  await ensureDir(paths.dataDir)
+  await Bun.write(paths.configPath, stringifyConfig(sample()))
+  await expect(
+    applySettings(paths, {
+      theme: "light",
+      default_agent: "claude",
+      default_project: join(dir, "missing"),
+      herdr_behavior: "tab",
+      herdr_bin: "herdr",
+    }),
+  ).rejects.toThrow(/Project path does not exist/)
+})
+
 test("applySettings writes theme agent behavior and bin", async () => {
   const dir = await mkdtemp(join(tmpdir(), "htasks-cfg-"))
   dirs.push(dir)

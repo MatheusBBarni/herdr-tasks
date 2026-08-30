@@ -4,14 +4,13 @@ import { agentKeys } from "../lib/agents.ts"
 import { listedProjects } from "../lib/projects.ts"
 import { applySettings } from "../lib/config.ts"
 import { CliError } from "../lib/errors.ts"
-import { isDirectory } from "../lib/fs.ts"
 import { closeTaskLayout, focusTaskLayout, hasHerdrLayout } from "../lib/herdr.ts"
 import { completeInProgressLaunch, completeReviewLaunch, moveTask, moveTaskDetailed } from "../lib/move.ts"
 import type { BoardPaths } from "../lib/root.ts"
 import { createTask, editTask, loadBoard, saveTask, writeTask } from "../lib/store.ts"
 import { basename } from "../lib/text.ts"
 import { DEFAULT_THEME, THEMES, type ThemeName } from "../lib/themes.ts"
-import { LANES, isLaunchLane, type Config, type Lane, type Task } from "../lib/types.ts"
+import { EMPTY_HERDR, LANES, isLaunchLane, type Config, type Lane, type Task } from "../lib/types.ts"
 import { watchTasks } from "../lib/watch.ts"
 import { useAgentStatuses } from "./agent-status.ts"
 import { Board } from "./components/board.tsx"
@@ -230,7 +229,7 @@ export function App(props: AppProps) {
         const latest = tasksRef.current.find((item) => item.id === task.id) ?? task
         const cleared = {
           ...latest,
-          herdr: { workspace_id: null, pane_id: null, agent_name: null },
+          herdr: { ...EMPTY_HERDR },
         }
         const saved = await saveTask(cleared)
         setTasks((all) => all.map((item) => (item.id === saved.id ? saved : item)))
@@ -274,49 +273,24 @@ export function App(props: AppProps) {
 
   const submitForm = useCallback(
     async (values: FormValues) => {
-      const title = values.title.trim()
-      if (!title) {
-        setFormError("Title is required.")
-        return
-      }
-      if (values.type && !config.task_types.includes(values.type)) {
-        setFormError(`Unknown type '${values.type}'. Known: ${config.task_types.join(", ")}`)
-        return
-      }
-      if (!config.agents[values.agent]) {
-        setFormError(`Unknown agent '${values.agent}'. Known: ${agentKeys(config).join(", ")}`)
-        return
-      }
-      if (!(await isDirectory(values.project.trim()))) {
-        setFormError(`Project path does not exist: ${values.project}`)
-        return
+      const payload = {
+        title: values.title,
+        description: values.description,
+        type: values.type,
+        agent: values.agent,
+        effort: values.effort,
+        project: values.project.trim(),
+        blockers: values.blockers,
+        worktree: values.worktree,
       }
       try {
         if (formMode === "create") {
-          const task = await createTask(props.paths, {
-            title,
-            description: values.description,
-            type: values.type,
-            agent: values.agent,
-            effort: values.effort,
-            project: values.project.trim(),
-            blockers: values.blockers,
-            worktree: values.worktree,
-          })
+          const task = await createTask(props.paths, payload)
           setTasks((all) => [...all, task])
           focusInLane(task.status, task.id)
           showToast(`created ${task.id}`)
         } else if (editingId) {
-          const task = await editTask(props.paths, editingId, {
-            title,
-            description: values.description,
-            type: values.type,
-            agent: values.agent,
-            effort: values.effort,
-            project: values.project.trim(),
-            blockers: values.blockers,
-            worktree: values.worktree,
-          })
+          const task = await editTask(props.paths, editingId, payload)
           setTasks((all) => all.map((item) => (item.id === task.id ? task : item)))
           showToast(`updated ${task.id}`)
         }
@@ -328,7 +302,7 @@ export function App(props: AppProps) {
         setFormError(message)
       }
     },
-    [config, editingId, focusInLane, formMode, props.paths, showToast],
+    [editingId, focusInLane, formMode, props.paths, showToast],
   )
 
   const openSettings = useCallback(() => {
@@ -345,27 +319,8 @@ export function App(props: AppProps) {
 
   const submitSettings = useCallback(
     async (values: SettingsValues) => {
-      if (!config.agents[values.default_agent]) {
-        setSettingsError(
-          `Unknown agent '${values.default_agent}'. Known: ${agentKeys(config).join(", ")}`,
-        )
-        return
-      }
-      const project = values.default_project.trim()
-      if (project && !(await isDirectory(project))) {
-        setSettingsError(`Project path does not exist: ${project}`)
-        return
-      }
-      if (!values.herdr_bin.trim()) {
-        setSettingsError("herdr_bin cannot be empty.")
-        return
-      }
       try {
-        const next = await applySettings(props.paths, {
-          ...values,
-          default_project: project,
-          herdr_bin: values.herdr_bin.trim(),
-        })
+        const next = await applySettings(props.paths, values)
         setConfig(next)
         setPreviewTheme(null)
         setSettingsError(null)
@@ -377,7 +332,7 @@ export function App(props: AppProps) {
         setSettingsError(message)
       }
     },
-    [config, props.paths, showToast],
+    [props.paths, showToast],
   )
 
   useKeyboard((key) => {

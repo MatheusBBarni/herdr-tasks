@@ -32,14 +32,23 @@ export function pathsFor(boardRoot: string): BoardPaths {
   }
 }
 
-export async function findBoardRoot(start = process.cwd()): Promise<string | null> {
+export function walkAncestors(start: string): string[] {
+  const dirs: string[] = []
   let dir = resolve(start)
   while (true) {
-    if (await pathExists(join(dir, DATA_DIR_NAME, CONFIG_NAME))) return dir
+    dirs.push(dir)
     const parent = dirname(dir)
-    if (parent === dir) return null
+    if (parent === dir) break
     dir = parent
   }
+  return dirs
+}
+
+export async function findBoardRoot(start = process.cwd()): Promise<string | null> {
+  for (const dir of walkAncestors(start)) {
+    if (await pathExists(join(dir, DATA_DIR_NAME, CONFIG_NAME))) return dir
+  }
+  return null
 }
 
 export async function requireBoardRoot(start = process.cwd()): Promise<BoardPaths> {

@@ -1,5 +1,6 @@
 import { expect, test } from "bun:test"
 import { EMPTY_REVIEW, type Config } from "../../lib/types.ts"
+import { noneSelectValue, selectOptionValue } from "./form-kit.tsx"
 import { classifyFormError, defaultFormValues, formLayout } from "./form.tsx"
 
 function cfg(partial: Partial<Config> = {}): Config {
@@ -20,6 +21,14 @@ function cfg(partial: Partial<Config> = {}): Config {
     ...partial,
   }
 }
+
+test("selectOptionValue and noneSelectValue normalize compact select options", () => {
+  expect(selectOptionValue({ value: "feat", name: "feat" })).toBe("feat")
+  expect(selectOptionValue({ name: "fix" })).toBe("fix")
+  expect(selectOptionValue(undefined)).toBe("")
+  expect(noneSelectValue("none")).toBe("")
+  expect(noneSelectValue("feat")).toBe("feat")
+})
 
 test("formLayout centers a compact dialog at 80x24", () => {
   const layout = formLayout(80, 24)

@@ -16,6 +16,7 @@ import { normalizeEffort } from "./effort.ts"
 import { NONE_TASK_TYPE, normalizeTaskType } from "./task-types.ts"
 import { normalizeWorktree, parseWorktreeField } from "./worktree.ts"
 import {
+  EMPTY_HERDR,
   LANES,
   type Config,
   type Lane,
@@ -84,7 +85,7 @@ function splitMarkdown(text: string): { yaml: string; body: string } {
 
 function parseHerdr(raw: unknown): Task["herdr"] {
   if (!raw || typeof raw !== "object") {
-    return { workspace_id: null, pane_id: null, agent_name: null }
+    return { ...EMPTY_HERDR }
   }
   const rec = raw as Record<string, unknown>
   return {
@@ -177,15 +178,10 @@ export async function readTaskFile(filePath: string): Promise<Task> {
 
 export async function listTasks(paths: BoardPaths): Promise<Task[]> {
   await ensureDir(paths.tasksDir)
-  const names = await readdir(paths.tasksDir)
-  const tasks: Task[] = []
-  for (const name of names.sort()) {
-    if (!name.endsWith(".md")) continue
-    if (name.startsWith(".")) continue
-    const filePath = join(paths.tasksDir, name)
-    tasks.push(await readTaskFile(filePath))
-  }
-  return tasks
+  const names = (await readdir(paths.tasksDir))
+    .filter((name) => name.endsWith(".md") && !name.startsWith("."))
+    .sort()
+  return Promise.all(names.map((name) => readTaskFile(join(paths.tasksDir, name))))
 }
 
 export async function getTask(paths: BoardPaths, id: string): Promise<Task> {
@@ -226,7 +222,7 @@ export async function createTask(
     project,
     created: stamp,
     updated: stamp,
-    herdr: { workspace_id: null, pane_id: null, agent_name: null },
+    herdr: { ...EMPTY_HERDR },
     blockers: [],
     worktree: normalizeWorktree(input.worktree),
     body: defaultBody(title, input.description ?? ""),
@@ -245,17 +241,19 @@ export async function createTask(
   return task
 }
 
+const EDIT_FIELDS = [
+  "title",
+  "description",
+  "type",
+  "agent",
+  "effort",
+  "project",
+  "blockers",
+  "worktree",
+] as const satisfies readonly (keyof TaskPatch)[]
+
 export async function editTask(paths: BoardPaths, id: string, patch: TaskPatch): Promise<Task> {
-  if (
-    !patch.title &&
-    patch.description === undefined &&
-    patch.type === undefined &&
-    !patch.agent &&
-    patch.effort === undefined &&
-    !patch.project &&
-    patch.blockers === undefined &&
-    patch.worktree === undefined
-  ) {
+  if (EDIT_FIELDS.every((key) => patch[key] === undefined)) {
     fail("Nothing to edit. Pass --title, --description, --type, --agent, --effort, --project, --blockers, or --worktree.")
   }
   const config = await loadConfig(paths)

@@ -1,11 +1,11 @@
 import { homedir } from "node:os"
-import { dirname, join, resolve } from "node:path"
+import { join, resolve } from "node:path"
 import { colorEnabled, paint } from "./color.ts"
 import { parseConfig, resolveReviewPromptPath, resolveReviewSkillPath } from "./config.ts"
 import { isDirectory, pathExists, readText } from "./fs.ts"
 import { defaultRunner, isServerRunning, type HerdrRunner } from "./herdr.ts"
 import { findProject, listedProjects } from "./projects.ts"
-import { findBoardRoot, packagedReviewPromptPath, packagedSkillPath, pathsFor } from "./root.ts"
+import { findBoardRoot, packagedReviewPromptPath, packagedSkillPath, pathsFor, walkAncestors } from "./root.ts"
 
 export type DoctorStatus = "ok" | "warn" | "fail"
 
@@ -43,17 +43,10 @@ export function herdrSkillCandidates(home: string, cwd: string): string[] {
     join(home, ".cursor/skills/herdr/SKILL.md"),
     join(home, ".config/opencode/skills/herdr/SKILL.md"),
   ]
-  const fromWalk: string[] = []
-  let dir = resolve(cwd)
-  while (true) {
-    fromWalk.push(
-      join(dir, ".agents/skills/herdr/SKILL.md"),
-      join(dir, ".claude/skills/herdr/SKILL.md"),
-    )
-    const parent = dirname(dir)
-    if (parent === dir) break
-    dir = parent
-  }
+  const fromWalk = walkAncestors(cwd).flatMap((dir) => [
+    join(dir, ".agents/skills/herdr/SKILL.md"),
+    join(dir, ".claude/skills/herdr/SKILL.md"),
+  ])
   return [...fromHome, ...fromWalk]
 }
 

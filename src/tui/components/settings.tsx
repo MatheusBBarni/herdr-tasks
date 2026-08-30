@@ -2,7 +2,9 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react"
 import { useKeyboard, useTerminalDimensions } from "@opentui/react"
 import { THEME_NAMES, type ThemeName } from "../../lib/themes.ts"
 import { HERDR_BEHAVIORS, type HerdrBehavior } from "../../lib/types.ts"
+import { useArmed } from "../arm.ts"
 import { tuiColor, useTheme } from "../theme.ts"
+import { CompactSelect, DialogOverlay, fieldInputColors } from "./form-kit.tsx"
 
 export type SettingsValues = {
   theme: ThemeName
@@ -30,13 +32,6 @@ const FIELDS = [
   "herdr_bin",
   "default_project",
 ] as const
-
-const SELECT_BINDINGS = [
-  { name: "left", action: "move-up" as const },
-  { name: "right", action: "move-down" as const },
-]
-
-function swallowMouse() {}
 
 export function settingsLayout(width: number): {
   dialogWidth: number
@@ -110,7 +105,7 @@ export function SettingsForm(props: SettingsFormProps) {
   const theme = useTheme()
   const { width } = useTerminalDimensions()
   const { dialogWidth, stackFields } = settingsLayout(width)
-  const [armed, setArmed] = useState(false)
+  const armed = useArmed()
   const [focus, setFocus] = useState(0)
   const [themeName, setThemeName] = useState<ThemeName>(props.initial.theme)
   const [agent, setAgent] = useState(props.initial.default_agent)
@@ -147,11 +142,6 @@ export function SettingsForm(props: SettingsFormProps) {
   const themeIndex = Math.max(0, THEME_NAMES.indexOf(themeName))
   const agentIndex = Math.max(0, props.agentKeys.indexOf(agent))
   const behaviorIndex = Math.max(0, HERDR_BEHAVIORS.indexOf(behavior))
-
-  useEffect(() => {
-    const t = setTimeout(() => setArmed(true), 60)
-    return () => clearTimeout(t)
-  }, [])
 
   useEffect(() => {
     submitted.current = false
@@ -218,219 +208,149 @@ export function SettingsForm(props: SettingsFormProps) {
     }
   })
 
-  const inputColors = color
-    ? {
-        backgroundColor: theme.bg,
-        textColor: theme.fg,
-        focusedBackgroundColor: theme.bg,
-        placeholderColor: theme.muted,
-        cursorColor: theme.focus,
-      }
-    : {}
-
-  const selectColors = color
-    ? {
-        backgroundColor: theme.bg,
-        textColor: theme.fg,
-        focusedBackgroundColor: theme.bg,
-        focusedTextColor: theme.fg,
-        selectedBackgroundColor: theme.selectedBg,
-        selectedTextColor: theme.fg,
-      }
-    : {}
-
+  const inputColors = fieldInputColors(theme, color)
   const pairWidth = stackFields ? "100%" : "50%"
 
   return (
-    <box
-      position="absolute"
-      left={0}
-      top={0}
-      width="100%"
-      height="100%"
-      flexDirection="row"
-      justifyContent="center"
-      alignItems="center"
-      zIndex={20}
-      backgroundColor={color ? theme.overlayBg : undefined}
-      onMouseDown={swallowMouse}
-      onMouseUp={swallowMouse}
-    >
+    <DialogOverlay title="Settings" width={dialogWidth} color={color}>
       <box
-        width={dialogWidth}
-        flexDirection="column"
+        flexDirection={stackFields ? "column" : "row"}
+        gap={stackFields ? 0 : 1}
         flexShrink={0}
-        border
-        borderStyle="single"
-        borderColor={color ? theme.border : undefined}
-        title="Settings"
-        titleColor={color ? theme.focus : undefined}
-        padding={1}
-        backgroundColor={color ? theme.cardBg : undefined}
+        width="100%"
       >
-        <box
-          flexDirection={stackFields ? "column" : "row"}
-          gap={stackFields ? 0 : 1}
-          flexShrink={0}
-          width="100%"
-        >
-          <box width={pairWidth} flexGrow={1} flexShrink={1}>
-            <SettingsField
-              title="theme"
+        <box width={pairWidth} flexGrow={1} flexShrink={1}>
+          <SettingsField
+            title="theme"
+            focused={focus === 0}
+            error={fieldErrors.theme}
+            color={color}
+            onMouseDown={() => setFocus(0)}
+          >
+            <CompactSelect
+              options={themeOptions}
+              selectedIndex={themeIndex}
               focused={focus === 0}
-              error={fieldErrors.theme}
               color={color}
-              onMouseDown={() => setFocus(0)}
-            >
-              <select
-                options={themeOptions}
-                selectedIndex={themeIndex}
-                focused={focus === 0}
-                width="100%"
-                height={1}
-                showDescription={false}
-                showSelectionIndicator={false}
-                wrapSelection
-                keyBindings={SELECT_BINDINGS}
-                {...selectColors}
-                onChange={(_index, option) => {
-                  const value = option?.value ?? option?.name
-                  if (typeof value !== "string") return
-                  if (!(THEME_NAMES as readonly string[]).includes(value)) return
-                  const next = value as ThemeName
-                  if (next === themeRef.current) return
-                  themeRef.current = next
-                  setThemeName(next)
-                  props.onPreviewTheme(next)
-                  clearError("theme")
-                }}
-              />
-            </SettingsField>
-          </box>
-          <box width={pairWidth} flexGrow={1} flexShrink={1}>
-            <SettingsField
-              title="default agent"
-              focused={focus === 1}
-              error={fieldErrors.default_agent}
-              color={color}
-              onMouseDown={() => setFocus(1)}
-            >
-              {props.agentKeys.length === 0 ? (
-                <text fg={color ? theme.muted : undefined}>none</text>
-              ) : (
-                <select
-                  options={agentOptions}
-                  selectedIndex={agentIndex}
-                  focused={focus === 1}
-                  width="100%"
-                  height={1}
-                  showDescription={false}
-                  showSelectionIndicator={false}
-                  wrapSelection
-                  keyBindings={SELECT_BINDINGS}
-                  {...selectColors}
-                  onChange={(_index, option) => {
-                    const value = option?.value ?? option?.name
-                    if (typeof value !== "string") return
-                    agentRef.current = value
-                    setAgent(value)
-                    clearError("default_agent")
-                  }}
-                />
-              )}
-            </SettingsField>
-          </box>
+              onChange={(_index, value) => {
+                if (!(THEME_NAMES as readonly string[]).includes(value)) return
+                const next = value as ThemeName
+                if (next === themeRef.current) return
+                themeRef.current = next
+                setThemeName(next)
+                props.onPreviewTheme(next)
+                clearError("theme")
+              }}
+            />
+          </SettingsField>
         </box>
-
-        <box
-          flexDirection={stackFields ? "column" : "row"}
-          gap={stackFields ? 0 : 1}
-          flexShrink={0}
-          width="100%"
-        >
-          <box width={pairWidth} flexGrow={1} flexShrink={1}>
-            <SettingsField
-              title="herdr behavior"
-              focused={focus === 2}
-              error={fieldErrors.herdr_behavior}
-              color={color}
-              onMouseDown={() => setFocus(2)}
-            >
-              <select
-                options={behaviorOptions}
-                selectedIndex={behaviorIndex}
-                focused={focus === 2}
-                width="100%"
-                height={1}
-                showDescription={false}
-                showSelectionIndicator={false}
-                wrapSelection
-                keyBindings={SELECT_BINDINGS}
-                {...selectColors}
-                onChange={(_index, option) => {
-                  const value = option?.value ?? option?.name
-                  if (typeof value !== "string") return
-                  if (!(HERDR_BEHAVIORS as readonly string[]).includes(value)) return
-                  const next = value as HerdrBehavior
-                  behaviorRef.current = next
-                  setBehavior(next)
-                  clearError("herdr_behavior")
+        <box width={pairWidth} flexGrow={1} flexShrink={1}>
+          <SettingsField
+            title="default agent"
+            focused={focus === 1}
+            error={fieldErrors.default_agent}
+            color={color}
+            onMouseDown={() => setFocus(1)}
+          >
+            {props.agentKeys.length === 0 ? (
+              <text fg={color ? theme.muted : undefined}>none</text>
+            ) : (
+              <CompactSelect
+                options={agentOptions}
+                selectedIndex={agentIndex}
+                focused={focus === 1}
+                color={color}
+                onChange={(_index, value) => {
+                  agentRef.current = value
+                  setAgent(value)
+                  clearError("default_agent")
                 }}
               />
-            </SettingsField>
-          </box>
-          <box width={pairWidth} flexGrow={1} flexShrink={1}>
-            <SettingsField
-              title="herdr bin"
-              focused={focus === 3}
-              error={fieldErrors.herdr_bin}
-              color={color}
-              onMouseDown={() => setFocus(3)}
-            >
-              <input
-                value={bin}
-                onChange={(value) => {
-                  binRef.current = value
-                  setBin(value)
-                  clearError("herdr_bin")
-                }}
-                focused={focus === 3}
-                width="100%"
-                placeholder="herdr"
-                {...inputColors}
-              />
-            </SettingsField>
-          </box>
-        </box>
-
-        <SettingsField
-          title="default project"
-          focused={focus === 4}
-          error={fieldErrors.default_project}
-          color={color}
-          onMouseDown={() => setFocus(4)}
-        >
-          <input
-            value={project}
-            onChange={(value) => {
-              projectRef.current = value
-              setProject(value)
-              clearError("default_project")
-            }}
-            focused={focus === 4}
-            width="100%"
-            placeholder="empty = cwd"
-            {...inputColors}
-          />
-        </SettingsField>
-
-        {fieldErrors.form ? (
-          <text fg={color ? theme.error : undefined}>{fieldErrors.form}</text>
-        ) : null}
-        <box marginTop={1} flexShrink={0}>
-          <FooterHints color={color} />
+            )}
+          </SettingsField>
         </box>
       </box>
-    </box>
+
+      <box
+        flexDirection={stackFields ? "column" : "row"}
+        gap={stackFields ? 0 : 1}
+        flexShrink={0}
+        width="100%"
+      >
+        <box width={pairWidth} flexGrow={1} flexShrink={1}>
+          <SettingsField
+            title="herdr behavior"
+            focused={focus === 2}
+            error={fieldErrors.herdr_behavior}
+            color={color}
+            onMouseDown={() => setFocus(2)}
+          >
+            <CompactSelect
+              options={behaviorOptions}
+              selectedIndex={behaviorIndex}
+              focused={focus === 2}
+              color={color}
+              onChange={(_index, value) => {
+                if (!(HERDR_BEHAVIORS as readonly string[]).includes(value)) return
+                const next = value as HerdrBehavior
+                behaviorRef.current = next
+                setBehavior(next)
+                clearError("herdr_behavior")
+              }}
+            />
+          </SettingsField>
+        </box>
+        <box width={pairWidth} flexGrow={1} flexShrink={1}>
+          <SettingsField
+            title="herdr bin"
+            focused={focus === 3}
+            error={fieldErrors.herdr_bin}
+            color={color}
+            onMouseDown={() => setFocus(3)}
+          >
+            <input
+              value={bin}
+              onChange={(value) => {
+                binRef.current = value
+                setBin(value)
+                clearError("herdr_bin")
+              }}
+              focused={focus === 3}
+              width="100%"
+              placeholder="herdr"
+              {...inputColors}
+            />
+          </SettingsField>
+        </box>
+      </box>
+
+      <SettingsField
+        title="default project"
+        focused={focus === 4}
+        error={fieldErrors.default_project}
+        color={color}
+        onMouseDown={() => setFocus(4)}
+      >
+        <input
+          value={project}
+          onChange={(value) => {
+            projectRef.current = value
+            setProject(value)
+            clearError("default_project")
+          }}
+          focused={focus === 4}
+          width="100%"
+          placeholder="empty = cwd"
+          {...inputColors}
+        />
+      </SettingsField>
+
+      {fieldErrors.form ? (
+        <text fg={color ? theme.error : undefined}>{fieldErrors.form}</text>
+      ) : null}
+      <box marginTop={1} flexShrink={0}>
+        <FooterHints color={color} />
+      </box>
+    </DialogOverlay>
   )
 }

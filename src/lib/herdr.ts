@@ -132,29 +132,7 @@ export function parseCreatedLayout(
   payload: unknown,
   kind: HerdrBehavior = "workspace",
 ): WorkspaceCreateResult {
-  const root = asRecord(payload) ?? {}
-  const result = asRecord(root.result) ?? root
-  const workspaceRec = asRecord(result.workspace)
-  const tabRec = asRecord(result.tab)
-  const rootPane = asRecord(result.root_pane) ?? asRecord(root.root_pane)
-  const paneRec = asRecord(result.pane)
-  const pane_id = pickString(
-    rootPane?.pane_id,
-    paneRec?.pane_id,
-    result.pane_id,
-    root.pane_id,
-  )
-  let workspace_id = pickString(
-    workspaceRec?.workspace_id,
-    typeof result.workspace === "string" ? result.workspace : undefined,
-    result.workspace_id,
-    root.workspace_id,
-    tabRec?.workspace_id,
-    asRecord(tabRec?.workspace)?.workspace_id,
-  )
-  if (!workspace_id && pane_id?.includes(":")) {
-    workspace_id = pane_id.slice(0, pane_id.indexOf(":"))
-  }
+  const { pane_id, workspace_id } = layoutFields(payload)
   if (!workspace_id || !pane_id) {
     throw new HerdrError(
       `herdr ${kind} did not return workspace_id and pane_id. Got: ${JSON.stringify(payload).slice(0, 500)}`,
@@ -174,20 +152,9 @@ export type PaneInfo = {
 }
 
 export function parsePaneInfo(payload: unknown): PaneInfo {
-  const root = asRecord(payload) ?? {}
-  const result = asRecord(root.result) ?? root
+  const { root, result, pane_id, workspace_id } = layoutFields(payload)
   const pane = asRecord(result.pane) ?? result
-  const pane_id = pickString(pane.pane_id, result.pane_id, root.pane_id)
   const tab_id = pickString(pane.tab_id, result.tab_id, root.tab_id)
-  let workspace_id = pickString(
-    pane.workspace_id,
-    result.workspace_id,
-    root.workspace_id,
-    asRecord(pane.workspace)?.workspace_id,
-  )
-  if (!workspace_id && pane_id?.includes(":")) {
-    workspace_id = pane_id.slice(0, pane_id.indexOf(":"))
-  }
   if (!pane_id || !tab_id || !workspace_id) {
     throw new HerdrError(
       `herdr pane get did not return pane_id, tab_id, and workspace_id. Got: ${JSON.stringify(payload).slice(0, 500)}`,
@@ -377,6 +344,33 @@ function workspaceIdFromPane(paneId: string | null | undefined): string | undefi
   return paneId.slice(0, paneId.indexOf(":"))
 }
 
+function layoutFields(payload: unknown): {
+  root: Record<string, unknown>
+  result: Record<string, unknown>
+  pane_id?: string
+  workspace_id?: string
+} {
+  const root = asRecord(payload) ?? {}
+  const result = asRecord(root.result) ?? root
+  const workspaceRec = asRecord(result.workspace)
+  const tabRec = asRecord(result.tab)
+  const rootPane = asRecord(result.root_pane) ?? asRecord(root.root_pane)
+  const paneRec = asRecord(result.pane)
+  const pane_id = pickString(rootPane?.pane_id, paneRec?.pane_id, result.pane_id, root.pane_id)
+  const workspace_id = pickString(
+    workspaceRec?.workspace_id,
+    typeof result.workspace === "string" ? result.workspace : undefined,
+    result.workspace_id,
+    root.workspace_id,
+    tabRec?.workspace_id,
+    asRecord(tabRec?.workspace)?.workspace_id,
+    paneRec?.workspace_id,
+    asRecord(paneRec?.workspace)?.workspace_id,
+    workspaceIdFromPane(pane_id),
+  )
+  return { root, result, pane_id, workspace_id }
+}
+
 function isLayoutGone(err: unknown): boolean {
   if (!(err instanceof HerdrError)) return false
   const text = `${err.message}
@@ -399,6 +393,36 @@ function isCallerLayout(
   return Boolean(ids.pane_id && env.HERDR_PANE_ID === ids.pane_id)
 }
 
+function storedLayoutIds(task: Task): { pane_id: string | null; workspace_id: string | null } {
+  const pane_id = task.herdr.pane_id
+  return {
+    pane_id,
+    workspace_id: task.herdr.workspace_id ?? workspaceIdFromPane(pane_id) ?? null,
+  }
+}
+
+async function resolveTaskLayoutIds(opts: {
+  bin: string
+  task: Task
+  behavior: HerdrBehavior
+  runner: HerdrRunner
+  missingMessage: string
+}): Promise<{ workspace_id: string | null; pane_id: string | null; tab_id: string | null }> {
+  const stored = storedLayoutIds(opts.task)
+  if (!stored.pane_id && !stored.workspace_id) {
+    throw new HerdrError(opts.missingMessage)
+  }
+  let tabId: string | null = null
+  let workspaceId = stored.workspace_id
+  if (opts.behavior === "tab") {
+    if (!stored.pane_id) throw new HerdrError(`${opts.task.id} has no pane_id.`)
+    const info = parsePaneInfo(await runJson(opts.runner, opts.bin, ["pane", "get", stored.pane_id]))
+    tabId = info.tab_id
+    workspaceId = workspaceId ?? info.workspace_id
+  }
+  return { workspace_id: workspaceId, pane_id: stored.pane_id, tab_id: tabId }
+}
+
 export async function focusTaskLayout(opts: {
   bin: string
   task: Task
@@ -414,27 +438,20 @@ export async function focusTaskLayout(opts: {
     throw new HerdrError(`${task.id} is not in progress or review.`)
   }
 
-  const paneId = task.herdr.pane_id
-  let workspaceId = task.herdr.workspace_id ?? workspaceIdFromPane(paneId) ?? null
-  if (!paneId && !workspaceId) {
-    throw new HerdrError(`${task.id} has no Herdr ${noun} yet.`)
-  }
+  const missing = `${task.id} has no Herdr ${noun} yet.`
+  const stored = storedLayoutIds(task)
+  if (!stored.pane_id && !stored.workspace_id) throw new HerdrError(missing)
 
   await herdrAvailable(bin, runner)
-
-  let tabId: string | null = null
-  if (behavior === "tab") {
-    if (!paneId) throw new HerdrError(`${task.id} has no pane_id.`)
-    const info = parsePaneInfo(await runJson(runner, bin, ["pane", "get", paneId]))
-    tabId = info.tab_id
-    workspaceId = workspaceId ?? info.workspace_id
-  }
-
-  const args = herdrFocusArgs(behavior, {
-    workspace_id: workspaceId,
-    pane_id: paneId,
-    tab_id: tabId,
+  const ids = await resolveTaskLayoutIds({
+    bin,
+    task,
+    behavior,
+    runner,
+    missingMessage: missing,
   })
+
+  const args = herdrFocusArgs(behavior, ids)
   await runJson(runner, bin, args)
   const id = args[2]
   if (!id) throw new HerdrError(`herdr ${noun} focus did not receive a target id.`)
@@ -458,28 +475,25 @@ export async function closeTaskLayout(opts: {
     throw new HerdrError(`${task.id} is not done.`)
   }
 
-  const paneId = task.herdr.pane_id
-  let workspaceId = task.herdr.workspace_id ?? workspaceIdFromPane(paneId) ?? null
-  if (!paneId && !workspaceId) {
-    throw new HerdrError(`${task.id} has no Herdr ${noun} to close.`)
-  }
+  const missing = `${task.id} has no Herdr ${noun} to close.`
+  const stored = storedLayoutIds(task)
+  const fallbackId = stored.pane_id ?? stored.workspace_id
+  if (!fallbackId) throw new HerdrError(missing)
 
   await herdrAvailable(bin, runner)
-
-  let tabId: string | null = null
-  if (behavior === "tab") {
-    if (!paneId) throw new HerdrError(`${task.id} has no pane_id.`)
-    try {
-      const info = parsePaneInfo(await runJson(runner, bin, ["pane", "get", paneId]))
-      tabId = info.tab_id
-      workspaceId = workspaceId ?? info.workspace_id
-    } catch (err) {
-      if (isLayoutGone(err)) return { noun, id: paneId, alreadyGone: true }
-      throw err
-    }
+  let ids: { workspace_id: string | null; pane_id: string | null; tab_id: string | null }
+  try {
+    ids = await resolveTaskLayoutIds({
+      bin,
+      task,
+      behavior,
+      runner,
+      missingMessage: missing,
+    })
+  } catch (err) {
+    if (isLayoutGone(err)) return { noun, id: fallbackId, alreadyGone: true }
+    throw err
   }
-
-  const ids = { workspace_id: workspaceId, pane_id: paneId, tab_id: tabId }
   if (isCallerLayout(behavior, ids, env)) {
     throw new HerdrError(`Refusing to close the current ${noun}.`)
   }
@@ -550,8 +564,7 @@ export function parseWorktreeList(payload: unknown): WorktreeInfo[] {
 }
 
 export function parseWorktreeCreate(payload: unknown): WorktreeCreateResult {
-  const root = asRecord(payload) ?? {}
-  const result = asRecord(root.result) ?? root
+  const { root, result, pane_id, workspace_id } = layoutFields(payload)
   const worktree = asRecord(result.worktree) ?? asRecord(root.worktree)
   const path = pickString(worktree?.path, result.path, root.path)
   if (!path) {
@@ -559,17 +572,6 @@ export function parseWorktreeCreate(payload: unknown): WorktreeCreateResult {
       `herdr worktree create did not return a path. Got: ${JSON.stringify(payload).slice(0, 500)}`,
     )
   }
-  const workspaceRec = asRecord(result.workspace)
-  const rootPane = asRecord(result.root_pane) ?? asRecord(root.root_pane)
-  const paneRec = asRecord(result.pane)
-  const pane_id = pickString(rootPane?.pane_id, paneRec?.pane_id, result.pane_id, root.pane_id)
-  const workspace_id = pickString(
-    workspaceRec?.workspace_id,
-    typeof result.workspace === "string" ? result.workspace : undefined,
-    result.workspace_id,
-    root.workspace_id,
-    pane_id?.includes(":") ? pane_id.slice(0, pane_id.indexOf(":")) : undefined,
-  )
   return { path, workspace_id, pane_id }
 }
 

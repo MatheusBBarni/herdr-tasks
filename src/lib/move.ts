@@ -12,19 +12,13 @@ import {
 import { resolveProjectPath, type BoardPaths } from "./root.ts"
 import { formatBlockedError } from "./blockers.ts"
 import { getTask, listTasks, requireLane, saveTask, writeTask } from "./store.ts"
-import { isLaunchLane, type Lane, type Task } from "./types.ts"
+import { EMPTY_HERDR, isLaunchLane, type Lane, type Task } from "./types.ts"
 
 export type MoveResult = {
   task: Task
   warning?: string
   pendingLaunch?: "in_progress" | "review"
 }
-
-const emptyHerdr = {
-  workspace_id: null,
-  pane_id: null,
-  agent_name: null,
-} as const
 
 export async function moveTask(
   paths: BoardPaths,
@@ -66,12 +60,11 @@ export async function moveTaskDetailed(
 
   if (!isLaunchLane(lane)) return { task: next }
 
-  const reusePane =
-    lane === "review" ? previous.status === "review" && Boolean(next.herdr.pane_id) : Boolean(next.herdr.pane_id)
+  const reusePane = Boolean(next.herdr.pane_id) && (lane !== "review" || previous.status === "review")
   if (reusePane && next.herdr.pane_id) {
     const alive = await herdrPaneAlive(config.herdr_bin, next.herdr.pane_id, runner)
     if (alive) return { task: next }
-    next.herdr = { ...emptyHerdr }
+    next.herdr = { ...EMPTY_HERDR }
     next.updated = new Date().toISOString()
     await writeTask(next)
   }
@@ -79,8 +72,7 @@ export async function moveTaskDetailed(
   if (opts.launch === false) return { task: next, pendingLaunch: lane }
 
   try {
-    if (lane === "review") return await completeReviewLaunch(paths, next, { runner, config })
-    return await completeInProgressLaunch(paths, next, { runner, config })
+    return await completeLaunch(lane, paths, next, { runner, config })
   } catch (err) {
     await writeTask(previous)
     if (err instanceof HerdrError) fail(err.message)
@@ -89,45 +81,26 @@ export async function moveTaskDetailed(
   }
 }
 
-export async function completeInProgressLaunch(
-  paths: BoardPaths,
-  task: Task,
-  opts: { runner?: HerdrRunner; config?: Awaited<ReturnType<typeof loadConfig>> } = {},
-): Promise<MoveResult> {
-  const config = opts.config ?? (await loadConfig(paths))
-  const agent = requireAgent(config, task.agent)
-  const project = await resolveProjectPath(paths.boardRoot, task.project)
-  const launched = await launchInProgress({
-    bin: config.herdr_bin,
-    task: { ...task, project, filePath: task.filePath },
-    agent,
-    agentKey: task.agent,
-    skillPath: paths.skillPath,
-    behavior: config.herdr_behavior,
-    runner: opts.runner,
-    boardRoot: paths.boardRoot,
-  })
-  task.project = project
-  task.herdr = launched.herdr
-  task.status = "in_progress"
-  const saved = await saveTask(task)
-  return { task: saved, warning: launched.warning }
-}
+type LaunchOpts = { runner?: HerdrRunner; config?: Awaited<ReturnType<typeof loadConfig>> }
 
-export async function completeReviewLaunch(
+async function completeLaunch(
+  lane: "in_progress" | "review",
   paths: BoardPaths,
   task: Task,
-  opts: { runner?: HerdrRunner; config?: Awaited<ReturnType<typeof loadConfig>> } = {},
+  opts: LaunchOpts = {},
 ): Promise<MoveResult> {
   const config = opts.config ?? (await loadConfig(paths))
-  const agentKey = reviewAgentKey(config, task.agent)
+  const agentKey = lane === "review" ? reviewAgentKey(config, task.agent) : task.agent
   const agent = requireAgent(config, agentKey)
   const project = await resolveProjectPath(paths.boardRoot, task.project)
-  await resolveReviewSkillPath(paths.boardRoot, config.review.skill)
-  const prompt = reviewPrompt({
-    skill: config.review.skill,
-    prompt: await loadReviewPromptText(paths.boardRoot, config.review.prompt),
-  })
+  let prompt: string | undefined
+  if (lane === "review") {
+    await resolveReviewSkillPath(paths.boardRoot, config.review.skill)
+    prompt = reviewPrompt({
+      skill: config.review.skill,
+      prompt: await loadReviewPromptText(paths.boardRoot, config.review.prompt),
+    })
+  }
   const launched = await launchInProgress({
     bin: config.herdr_bin,
     task: { ...task, project, filePath: task.filePath },
@@ -141,9 +114,25 @@ export async function completeReviewLaunch(
   })
   task.project = project
   task.herdr = launched.herdr
-  task.status = "review"
+  task.status = lane
   const saved = await saveTask(task)
   return { task: saved, warning: launched.warning }
+}
+
+export function completeInProgressLaunch(
+  paths: BoardPaths,
+  task: Task,
+  opts: LaunchOpts = {},
+): Promise<MoveResult> {
+  return completeLaunch("in_progress", paths, task, opts)
+}
+
+export function completeReviewLaunch(
+  paths: BoardPaths,
+  task: Task,
+  opts: LaunchOpts = {},
+): Promise<MoveResult> {
+  return completeLaunch("review", paths, task, opts)
 }
 
 export function laneLabel(lane: Lane): string {

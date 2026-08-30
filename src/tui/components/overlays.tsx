@@ -1,8 +1,8 @@
-import { useEffect, useState } from "react"
 import { useKeyboard } from "@opentui/react"
 import { hrefForDisplay, parseDescriptionParts } from "../../lib/description.ts"
 import { layoutNoun } from "../../lib/herdr.ts"
 import type { HerdrBehavior, Task } from "../../lib/types.ts"
+import { useArmed } from "../arm.ts"
 import { tuiColor, useTheme } from "../theme.ts"
 
 type OverlayProps = {
@@ -10,11 +10,7 @@ type OverlayProps = {
 }
 
 function useArmedEscape(onClose: () => void) {
-  const [armed, setArmed] = useState(false)
-  useEffect(() => {
-    const t = setTimeout(() => setArmed(true), 60)
-    return () => clearTimeout(t)
-  }, [])
+  const armed = useArmed()
   useKeyboard((key) => {
     if (!armed) return
     if (key.name === "escape") {

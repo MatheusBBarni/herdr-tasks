@@ -7,7 +7,9 @@ import { EFFORTS, isEffort } from "../../lib/effort.ts"
 import { defaultProjectPath } from "../../lib/projects.ts"
 import { truncateCells } from "../../lib/text.ts"
 import type { Config } from "../../lib/types.ts"
+import { useArmed } from "../arm.ts"
 import { tuiColor, useTheme } from "../theme.ts"
+import { CompactSelect, DialogOverlay, fieldInputColors, noneSelectValue } from "./form-kit.tsx"
 
 export type FormValues = {
   title: string
@@ -50,11 +52,6 @@ const FIELDS = ["title", "description", "type", "effort", "agent", "project", "w
 
 const NONE_BLOCKER_OPTION = { name: "none", description: "", value: "" }
 
-const SELECT_BINDINGS = [
-  { name: "left", action: "move-up" as const },
-  { name: "right", action: "move-down" as const },
-]
-
 const NONE_TYPE_OPTION = { name: "none", description: "", value: "" }
 
 const NONE_EFFORT_OPTION = { name: "none", description: "", value: "" }
@@ -68,8 +65,6 @@ const EFFORT_OPTIONS = [
   NONE_EFFORT_OPTION,
   ...EFFORTS.map((key) => ({ name: key, description: "", value: key })),
 ]
-
-function swallowMouse() {}
 
 export function formLayout(width: number, height: number): {
   dialogWidth: number
@@ -195,7 +190,7 @@ export function TaskForm(props: TaskFormProps) {
   const theme = useTheme()
   const { width, height } = useTerminalDimensions()
   const { dialogWidth, stackFields, descriptionRows } = formLayout(width, height)
-  const [armed, setArmed] = useState(false)
+  const armed = useArmed()
   const [focus, setFocus] = useState(0)
   const [title, setTitle] = useState(props.initial.title)
   const [description, setDescription] = useState(props.initial.description)
@@ -283,11 +278,6 @@ export function TaskForm(props: TaskFormProps) {
   }, [blockerTasks, blockers])
 
   useEffect(() => {
-    const t = setTimeout(() => setArmed(true), 60)
-    return () => clearTimeout(t)
-  }, [])
-
-  useEffect(() => {
     submitted.current = false
     setFieldErrors(classifyFormError(props.error))
   }, [props.error])
@@ -304,8 +294,7 @@ export function TaskForm(props: TaskFormProps) {
     })
   }
 
-  const applyBlockerOption = (value: unknown) => {
-    if (typeof value !== "string") return
+  const applyBlockerOption = (value: string) => {
     const next = toggleBlocker(blockersRef.current, value)
     blockersRef.current = next
     setBlockers(next)
@@ -376,352 +365,242 @@ export function TaskForm(props: TaskFormProps) {
   })
 
   const heading = props.mode === "create" ? "New task" : `Edit ${props.taskId ?? "task"}`
-  const inputColors = color
-    ? {
-        backgroundColor: theme.bg,
-        textColor: theme.fg,
-        focusedBackgroundColor: theme.bg,
-        placeholderColor: theme.muted,
-        cursorColor: theme.focus,
-      }
-    : {}
+  const inputColors = fieldInputColors(theme, color)
 
   return (
-    <box
-      position="absolute"
-      left={0}
-      top={0}
-      width="100%"
-      height="100%"
-      flexDirection="row"
-      justifyContent="center"
-      alignItems="center"
-      zIndex={20}
-      backgroundColor={color ? theme.overlayBg : undefined}
-      onMouseDown={swallowMouse}
-      onMouseUp={swallowMouse}
-    >
-      <box
-        width={dialogWidth}
-        flexDirection="column"
-        flexShrink={0}
-        border
-        borderStyle="single"
-        borderColor={color ? theme.border : undefined}
-        title={heading}
-        titleColor={color ? theme.focus : undefined}
-        padding={1}
-        backgroundColor={color ? theme.cardBg : undefined}
+    <DialogOverlay title={heading} width={dialogWidth} color={color}>
+      <FormField
+        label="title"
+        focused={focus === 0}
+        error={fieldErrors.title}
+        color={color}
+        onMouseDown={() => setFocus(0)}
       >
-        <FormField
-          label="title"
+        <input
+          value={title}
+          onChange={(value) => {
+            titleRef.current = value
+            setTitle(value)
+            clearError("title")
+          }}
           focused={focus === 0}
-          error={fieldErrors.title}
-          color={color}
-          onMouseDown={() => setFocus(0)}
-        >
-          <input
-            value={title}
-            onChange={(value) => {
-              titleRef.current = value
-              setTitle(value)
-              clearError("title")
-            }}
-            focused={focus === 0}
-            width="100%"
-            placeholder="required"
-            {...inputColors}
-          />
-        </FormField>
-
-        <FormField
-          label="description"
-          focused={focus === 1}
-          error={fieldErrors.description}
-          color={color}
-          onMouseDown={() => setFocus(1)}
-        >
-          <textarea
-            ref={descRef}
-            initialValue={props.initial.description}
-            focused={focus === 1}
-            width="100%"
-            height={descriptionRows}
-            flexGrow={0}
-            flexShrink={0}
-            wrapMode="word"
-            placeholder="optional, images as links"
-            onContentChange={() => {
-              setDescription(descRef.current?.plainText ?? "")
-            }}
-            {...inputColors}
-          />
-        </FormField>
-
-        <box
-          flexDirection={stackFields ? "column" : "row"}
-          gap={stackFields ? 0 : 2}
-          flexShrink={0}
           width="100%"
+          placeholder="required"
+          {...inputColors}
+        />
+      </FormField>
+
+      <FormField
+        label="description"
+        focused={focus === 1}
+        error={fieldErrors.description}
+        color={color}
+        onMouseDown={() => setFocus(1)}
+      >
+        <textarea
+          ref={descRef}
+          initialValue={props.initial.description}
+          focused={focus === 1}
+          width="100%"
+          height={descriptionRows}
+          flexGrow={0}
+          flexShrink={0}
+          wrapMode="word"
+          placeholder="optional, images as links"
+          onContentChange={() => {
+            setDescription(descRef.current?.plainText ?? "")
+          }}
+          {...inputColors}
+        />
+      </FormField>
+
+      <box
+        flexDirection={stackFields ? "column" : "row"}
+        gap={stackFields ? 0 : 2}
+        flexShrink={0}
+        width="100%"
+      >
+        <box
+          flexDirection="row"
+          gap={2}
+          width={stackFields ? "100%" : 28}
+          flexShrink={0}
         >
-          <box
-            flexDirection="row"
-            gap={2}
-            width={stackFields ? "100%" : 28}
-            flexShrink={0}
-          >
-            <box width={stackFields ? "50%" : 14} flexShrink={0}>
-              <FormField
-                label="type"
+          <box width={stackFields ? "50%" : 14} flexShrink={0}>
+            <FormField
+              label="type"
+              focused={focus === 2}
+              error={fieldErrors.type}
+              color={color}
+              onMouseDown={() => setFocus(2)}
+            >
+              <CompactSelect
+                options={typeOptions}
+                selectedIndex={typeIndex}
                 focused={focus === 2}
-                error={fieldErrors.type}
                 color={color}
-                onMouseDown={() => setFocus(2)}
-              >
-                <select
-                  options={typeOptions}
-                  selectedIndex={typeIndex}
-                  focused={focus === 2}
-                  width="100%"
-                  height={1}
-                  showDescription={false}
-                  showSelectionIndicator={false}
-                  wrapSelection
-                  keyBindings={SELECT_BINDINGS}
-                  backgroundColor={color ? theme.bg : undefined}
-                  textColor={color ? theme.fg : undefined}
-                  focusedBackgroundColor={color ? theme.bg : undefined}
-                  focusedTextColor={color ? theme.fg : undefined}
-                  selectedBackgroundColor={color ? theme.selectedBg : undefined}
-                  selectedTextColor={color ? theme.fg : undefined}
-                  onChange={(_index, option) => {
-                    const value = option?.value ?? option?.name ?? ""
-                    if (typeof value !== "string") return
-                    const next = value === "none" ? "" : value
-                    typeRef.current = next
-                    setType(next)
-                    clearError("type")
-                  }}
-                />
-              </FormField>
-            </box>
-            <box width={stackFields ? "50%" : 12} flexShrink={0}>
-              <FormField
-                label="effort"
+                onChange={(_index, value) => {
+                  const next = noneSelectValue(value)
+                  typeRef.current = next
+                  setType(next)
+                  clearError("type")
+                }}
+              />
+            </FormField>
+          </box>
+          <box width={stackFields ? "50%" : 12} flexShrink={0}>
+            <FormField
+              label="effort"
+              focused={focus === 3}
+              error={fieldErrors.effort}
+              color={color}
+              onMouseDown={() => setFocus(3)}
+            >
+              <CompactSelect
+                options={EFFORT_OPTIONS}
+                selectedIndex={effortIndex}
                 focused={focus === 3}
-                error={fieldErrors.effort}
                 color={color}
-                onMouseDown={() => setFocus(3)}
-              >
-                <select
-                  options={EFFORT_OPTIONS}
-                  selectedIndex={effortIndex}
-                  focused={focus === 3}
-                  width="100%"
-                  height={1}
-                  showDescription={false}
-                  showSelectionIndicator={false}
-                  wrapSelection
-                  keyBindings={SELECT_BINDINGS}
-                  backgroundColor={color ? theme.bg : undefined}
-                  textColor={color ? theme.fg : undefined}
-                  focusedBackgroundColor={color ? theme.bg : undefined}
-                  focusedTextColor={color ? theme.fg : undefined}
-                  selectedBackgroundColor={color ? theme.selectedBg : undefined}
-                  selectedTextColor={color ? theme.fg : undefined}
-                  onChange={(_index, option) => {
-                    const value = option?.value ?? option?.name ?? ""
-                    if (typeof value !== "string") return
-                    const next = value === "none" ? "" : value
-                    effortRef.current = next
-                    setEffort(next)
-                    clearError("effort")
-                  }}
-                />
-              </FormField>
-            </box>
-          </box>
-          <box width={stackFields ? "100%" : 16} flexShrink={0}>
-            <FormField
-              label="agent"
-              focused={focus === 4}
-              error={fieldErrors.agent}
-              color={color}
-              onMouseDown={() => setFocus(4)}
-            >
-              {props.agentKeys.length === 0 ? (
-                <text fg={color ? theme.muted : undefined}>none</text>
-              ) : (
-                <select
-                  options={agentOptions}
-                  selectedIndex={agentIndex}
-                  focused={focus === 4}
-                  width="100%"
-                  height={1}
-                  showDescription={false}
-                  showSelectionIndicator={false}
-                  wrapSelection
-                  keyBindings={SELECT_BINDINGS}
-                  backgroundColor={color ? theme.bg : undefined}
-                  textColor={color ? theme.fg : undefined}
-                  focusedBackgroundColor={color ? theme.bg : undefined}
-                  focusedTextColor={color ? theme.fg : undefined}
-                  selectedBackgroundColor={color ? theme.selectedBg : undefined}
-                  selectedTextColor={color ? theme.fg : undefined}
-                  onChange={(_index, option) => {
-                    const value = option?.value ?? option?.name
-                    if (typeof value !== "string") return
-                    agentRef.current = value
-                    setAgent(value)
-                    clearError("agent")
-                  }}
-                />
-              )}
-            </FormField>
-          </box>
-          <box flexGrow={1} flexShrink={1} width={stackFields ? "100%" : undefined}>
-            <FormField
-              label="project"
-              focused={focus === 5}
-              error={fieldErrors.project}
-              color={color}
-              onMouseDown={() => setFocus(5)}
-            >
-              {useProjectSelect ? (
-                <select
-                  options={projectSelectOptions}
-                  selectedIndex={projectIndex}
-                  focused={focus === 5}
-                  width="100%"
-                  height={1}
-                  showDescription={false}
-                  showSelectionIndicator={false}
-                  wrapSelection
-                  keyBindings={SELECT_BINDINGS}
-                  backgroundColor={color ? theme.bg : undefined}
-                  textColor={color ? theme.fg : undefined}
-                  focusedBackgroundColor={color ? theme.bg : undefined}
-                  focusedTextColor={color ? theme.fg : undefined}
-                  selectedBackgroundColor={color ? theme.selectedBg : undefined}
-                  selectedTextColor={color ? theme.fg : undefined}
-                  onChange={(_index, option) => {
-                    const value = option?.value ?? option?.name ?? ""
-                    if (typeof value !== "string") return
-                    projectRef.current = value
-                    setProject(value)
-                    clearError("project")
-                  }}
-                />
-              ) : (
-                <input
-                  value={project}
-                  onChange={(value) => {
-                    projectRef.current = value
-                    setProject(value)
-                    clearError("project")
-                  }}
-                  focused={focus === 5}
-                  width="100%"
-                  placeholder="path"
-                  {...inputColors}
-                />
-              )}
-            </FormField>
-          </box>
-        </box>
-
-        <box flexDirection="row" gap={2} flexShrink={0} width="100%">
-          <box width={14} flexShrink={0}>
-            <FormField
-              label="worktree"
-              focused={focus === 6}
-              error={fieldErrors.worktree}
-              color={color}
-              onMouseDown={() => setFocus(6)}
-            >
-              <select
-                options={WORKTREE_OPTIONS}
-                selectedIndex={worktree ? 1 : 0}
-                focused={focus === 6}
-                width="100%"
-                height={1}
-                showDescription={false}
-                showSelectionIndicator={false}
-                wrapSelection
-                keyBindings={SELECT_BINDINGS}
-                backgroundColor={color ? theme.bg : undefined}
-                textColor={color ? theme.fg : undefined}
-                focusedBackgroundColor={color ? theme.bg : undefined}
-                focusedTextColor={color ? theme.fg : undefined}
-                selectedBackgroundColor={color ? theme.selectedBg : undefined}
-                selectedTextColor={color ? theme.fg : undefined}
-                onChange={(_index, option) => {
-                  const value = option?.value ?? option?.name ?? ""
-                  if (typeof value !== "string") return
-                  const next = value.toLowerCase() === "yes"
-                  worktreeRef.current = next
-                  setWorktree(next)
-                  clearError("worktree")
-                }}
-              />
-            </FormField>
-          </box>
-          <box flexGrow={1} flexShrink={1}>
-            <FormField
-              label={truncateCells(
-                blockers.length > 0 ? `blockers  ${blockers.join(", ")}` : "blockers",
-                Math.max(8, dialogWidth - 18),
-              )}
-              focused={focus === 7}
-              error={fieldErrors.blockers}
-              color={color}
-              onMouseDown={() => setFocus(7)}
-            >
-              <select
-                options={blockerOptions}
-                selectedIndex={blockerIndex}
-                focused={focus === 7}
-                width="100%"
-                height={1}
-                showDescription={false}
-                showSelectionIndicator={false}
-                wrapSelection
-                keyBindings={SELECT_BINDINGS}
-                backgroundColor={color ? theme.bg : undefined}
-                textColor={color ? theme.fg : undefined}
-                focusedBackgroundColor={color ? theme.bg : undefined}
-                focusedTextColor={color ? theme.fg : undefined}
-                selectedBackgroundColor={color ? theme.selectedBg : undefined}
-                selectedTextColor={color ? theme.fg : undefined}
-                onChange={(index) => {
-                  setBlockerIndex(index)
-                }}
-                onSelect={(_index, option) => {
-                  applyBlockerOption(option?.value ?? option?.name ?? "")
+                onChange={(_index, value) => {
+                  const next = noneSelectValue(value)
+                  effortRef.current = next
+                  setEffort(next)
+                  clearError("effort")
                 }}
               />
             </FormField>
           </box>
         </box>
-
-        {fieldErrors.form ? (
-          <text fg={color ? theme.error : undefined}>{fieldErrors.form}</text>
-        ) : null}
-        <box marginTop={1} flexShrink={0}>
-          <FooterHints
+        <box width={stackFields ? "100%" : 16} flexShrink={0}>
+          <FormField
+            label="agent"
+            focused={focus === 4}
+            error={fieldErrors.agent}
             color={color}
-            showToggle={focus === 7}
-            onNext={() => setFocus((i) => (i + 1) % FIELDS.length)}
-            onToggle={() => {
-              const option = blockerOptions[blockerIndex]
-              applyBlockerOption(option?.value ?? option?.name ?? "")
-            }}
-            onSave={submitNow}
-            onCancel={props.onCancel}
-          />
+            onMouseDown={() => setFocus(4)}
+          >
+            {props.agentKeys.length === 0 ? (
+              <text fg={color ? theme.muted : undefined}>none</text>
+            ) : (
+              <CompactSelect
+                options={agentOptions}
+                selectedIndex={agentIndex}
+                focused={focus === 4}
+                color={color}
+                onChange={(_index, value) => {
+                  agentRef.current = value
+                  setAgent(value)
+                  clearError("agent")
+                }}
+              />
+            )}
+          </FormField>
+        </box>
+        <box flexGrow={1} flexShrink={1} width={stackFields ? "100%" : undefined}>
+          <FormField
+            label="project"
+            focused={focus === 5}
+            error={fieldErrors.project}
+            color={color}
+            onMouseDown={() => setFocus(5)}
+          >
+            {useProjectSelect ? (
+              <CompactSelect
+                options={projectSelectOptions}
+                selectedIndex={projectIndex}
+                focused={focus === 5}
+                color={color}
+                onChange={(_index, value) => {
+                  projectRef.current = value
+                  setProject(value)
+                  clearError("project")
+                }}
+              />
+            ) : (
+              <input
+                value={project}
+                onChange={(value) => {
+                  projectRef.current = value
+                  setProject(value)
+                  clearError("project")
+                }}
+                focused={focus === 5}
+                width="100%"
+                placeholder="path"
+                {...inputColors}
+              />
+            )}
+          </FormField>
         </box>
       </box>
-    </box>
+
+      <box flexDirection="row" gap={2} flexShrink={0} width="100%">
+        <box width={14} flexShrink={0}>
+          <FormField
+            label="worktree"
+            focused={focus === 6}
+            error={fieldErrors.worktree}
+            color={color}
+            onMouseDown={() => setFocus(6)}
+          >
+            <CompactSelect
+              options={WORKTREE_OPTIONS}
+              selectedIndex={worktree ? 1 : 0}
+              focused={focus === 6}
+              color={color}
+              onChange={(_index, value) => {
+                const next = value.toLowerCase() === "yes"
+                worktreeRef.current = next
+                setWorktree(next)
+                clearError("worktree")
+              }}
+            />
+          </FormField>
+        </box>
+        <box flexGrow={1} flexShrink={1}>
+          <FormField
+            label={truncateCells(
+              blockers.length > 0 ? `blockers  ${blockers.join(", ")}` : "blockers",
+              Math.max(8, dialogWidth - 18),
+            )}
+            focused={focus === 7}
+            error={fieldErrors.blockers}
+            color={color}
+            onMouseDown={() => setFocus(7)}
+          >
+            <CompactSelect
+              options={blockerOptions}
+              selectedIndex={blockerIndex}
+              focused={focus === 7}
+              color={color}
+              onChange={(index) => {
+                setBlockerIndex(index)
+              }}
+              onSelect={(_index, value) => {
+                applyBlockerOption(value)
+              }}
+            />
+          </FormField>
+        </box>
+      </box>
+
+      {fieldErrors.form ? (
+        <text fg={color ? theme.error : undefined}>{fieldErrors.form}</text>
+      ) : null}
+      <box marginTop={1} flexShrink={0}>
+        <FooterHints
+          color={color}
+          showToggle={focus === 7}
+          onNext={() => setFocus((i) => (i + 1) % FIELDS.length)}
+          onToggle={() => {
+            const option = blockerOptions[blockerIndex]
+            applyBlockerOption(option?.value ?? option?.name ?? "")
+          }}
+          onSave={submitNow}
+          onCancel={props.onCancel}
+        />
+      </box>
+    </DialogOverlay>
   )
 }
 
