@@ -3,7 +3,7 @@ import type { ScrollBoxRenderable } from "@opentui/core"
 import { useTerminalDimensions } from "@opentui/react"
 import type { LiveAgentStatus } from "../../lib/herdr.ts"
 import { truncateCells } from "../../lib/text.ts"
-import type { Lane, Task } from "../../lib/types.ts"
+import { isLaunchLane, type Lane, type Task } from "../../lib/types.ts"
 import { CARD_GAP, revealTaskInLane } from "../scroll.ts"
 import { tuiColor, useTheme } from "../theme.ts"
 import { Card } from "./card.tsx"
@@ -91,7 +91,7 @@ export function Column(props: ColumnProps) {
                 launching={props.launchingIds.has(task.id)}
                 defaultProject={props.defaultProject}
                 agentStatus={
-                  task.status === "in_progress" && task.herdr.pane_id
+                  isLaunchLane(task.status) && task.herdr.pane_id
                     ? props.agentStatuses.get(task.herdr.pane_id)
                     : undefined
                 }

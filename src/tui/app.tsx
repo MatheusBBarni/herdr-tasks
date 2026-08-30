@@ -6,12 +6,12 @@ import { applySettings } from "../lib/config.ts"
 import { CliError } from "../lib/errors.ts"
 import { isDirectory } from "../lib/fs.ts"
 import { closeTaskLayout, focusTaskLayout, hasHerdrLayout } from "../lib/herdr.ts"
-import { completeInProgressLaunch, moveTask } from "../lib/move.ts"
+import { completeInProgressLaunch, completeReviewLaunch, moveTask, moveTaskDetailed } from "../lib/move.ts"
 import type { BoardPaths } from "../lib/root.ts"
 import { createTask, editTask, loadBoard, saveTask, writeTask } from "../lib/store.ts"
 import { basename } from "../lib/text.ts"
 import { DEFAULT_THEME, THEMES, type ThemeName } from "../lib/themes.ts"
-import { LANES, type Config, type Lane, type Task } from "../lib/types.ts"
+import { LANES, isLaunchLane, type Config, type Lane, type Task } from "../lib/types.ts"
 import { watchTasks } from "../lib/watch.ts"
 import { useAgentStatuses } from "./agent-status.ts"
 import { Board } from "./components/board.tsx"
@@ -135,25 +135,27 @@ export function App(props: AppProps) {
     async (id: string, lane: Lane) => {
       const current = tasksRef.current.find((task) => task.id === id)
       if (!current) return
-      if (current.status === lane && lane !== "in_progress") return
+      if (current.status === lane && !isLaunchLane(lane)) return
       const previous = current
       try {
-        if (lane === "in_progress") {
-          const pending = await moveTask(props.paths, id, lane, { launch: false })
-          setTasks((all) => all.map((task) => (task.id === id ? pending : task)))
-          if (pending.herdr.pane_id) {
-            showToast(`${id} in_progress`)
+        if (isLaunchLane(lane)) {
+          const pending = await moveTaskDetailed(props.paths, id, lane, { launch: false })
+          setTasks((all) => all.map((task) => (task.id === id ? pending.task : task)))
+          if (!pending.pendingLaunch) {
+            showToast(`${id} ${pending.task.status}`)
             focusInLane(lane, id)
             setSelectedId(null)
             return
           }
           setLaunchingIds((set) => new Set(set).add(id))
           showToast(`${id} starting…`)
-          void completeInProgressLaunch(props.paths, pending)
+          const launch =
+            pending.pendingLaunch === "review" ? completeReviewLaunch : completeInProgressLaunch
+          void launch(props.paths, pending.task)
             .then((result) => {
               setTasks((all) => all.map((task) => (task.id === id ? result.task : task)))
               showToast(
-                result.warning ?? `${id} in_progress`,
+                result.warning ?? `${id} ${result.task.status}`,
                 result.warning ? "error" : "ok",
               )
             })
@@ -194,8 +196,8 @@ export function App(props: AppProps) {
       showToast("No task focused.", "error")
       return
     }
-    if (task.status !== "in_progress") {
-      showToast(`${task.id} is not in progress.`, "error")
+    if (!isLaunchLane(task.status)) {
+      showToast(`${task.id} is not in progress or review.`, "error")
       return
     }
     void focusTaskLayout({

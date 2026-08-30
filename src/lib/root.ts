@@ -4,6 +4,7 @@ import { isDirectory, pathExists } from "./fs.ts"
 
 export const DATA_DIR_NAME = ".herdr-tasks"
 export const CONFIG_NAME = "config.toml"
+export const REVIEW_PROMPT_REL = `${DATA_DIR_NAME}/prompts/review.md`
 
 export type BoardPaths = {
   boardRoot: string
@@ -12,10 +13,13 @@ export type BoardPaths = {
   tasksDir: string
   skillsDir: string
   skillPath: string
+  promptsDir: string
+  reviewPromptPath: string
 }
 
 export function pathsFor(boardRoot: string): BoardPaths {
   const dataDir = join(boardRoot, DATA_DIR_NAME)
+  const promptsDir = join(dataDir, "prompts")
   return {
     boardRoot,
     dataDir,
@@ -23,6 +27,8 @@ export function pathsFor(boardRoot: string): BoardPaths {
     tasksDir: join(dataDir, "tasks"),
     skillsDir: join(dataDir, "skills", "htasks"),
     skillPath: join(dataDir, "skills", "htasks", "SKILL.md"),
+    promptsDir,
+    reviewPromptPath: join(promptsDir, "review.md"),
   }
 }
 
@@ -54,4 +60,8 @@ export async function resolveProjectPath(boardRoot: string, project: string): Pr
 
 export function packagedSkillPath(): string {
   return join(import.meta.dir, "../../skills/htasks/SKILL.md")
+}
+
+export function packagedReviewPromptPath(): string {
+  return join(import.meta.dir, "../../skills/htasks/review-prompt.md")
 }

@@ -3,6 +3,7 @@ import {
   agentOnPane,
   closeTaskLayout,
   firstPrompt,
+  reviewPrompt,
   focusTaskLayout,
   hasHerdrLayout,
   herdrCloseArgs,
@@ -160,11 +161,23 @@ test("agentOnPane matches pane_id from agent list", () => {
 
 test("first prompt names htasks and herdr", () => {
   const text = firstPrompt(sample, "/repo/.herdr-tasks/skills/htasks/SKILL.md")
-  expect(text).toContain("htasks move dev-1 done")
+  expect(text).toContain("htasks move dev-1 review")
   expect(text).toContain("Read /repo/.herdr-tasks/tasks/dev-1.md")
   expect(text).toContain("this workspace")
   expect(firstPrompt(sample, "/tmp/SKILL.md", "tab")).toContain("this tab")
   expect(firstPrompt(sample, "/tmp/SKILL.md", "pane")).toContain("this pane")
+})
+
+test("review prompt is the skill name then the prompt file", () => {
+  expect(
+    reviewPrompt({
+      skill: "thermo-nuclear-code-quality-review",
+      prompt: "Check the diff for regressions.",
+    }),
+  ).toBe("thermo-nuclear-code-quality-review\nCheck the diff for regressions.")
+  expect(reviewPrompt({ prompt: "Only the file." })).toBe("Only the file.")
+  expect(reviewPrompt({ skill: "review" })).toBe("review")
+  expect(reviewPrompt({})).toBe("")
 })
 
 test("parsePaneInfo reads pane get JSON", () => {
@@ -253,7 +266,7 @@ test("focusTaskLayout rejects backlog and missing layout", async () => {
       task: { ...sample, status: "backlog" },
       runner,
     }),
-  ).rejects.toThrow("is not in progress")
+  ).rejects.toThrow("is not in progress or review")
   await expect(
     focusTaskLayout({
       bin: "herdr",

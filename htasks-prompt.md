@@ -57,6 +57,8 @@ htasks doctor [--json]
 ```text
 .herdr-tasks/
   config.toml
+  prompts/
+    review.md
   tasks/
     <prefix>-<n>.md
   skills/
@@ -74,13 +76,21 @@ default_agent = "claude"
 default_project = ""
 task_types = ["feat", "fix", "bug", "chore", "docs", "refactor", "test"]
 default_type = "feat"
-lanes = ["backlog", "in_progress", "done"]
+lanes = ["backlog", "in_progress", "review", "done"]
 next_id = 1
 
 [herdr]
 bin = "herdr"
 # tab | workspace | pane
 behavior = "workspace"
+
+# Review lane after in_progress. Empty agent uses the task's agent.
+# skill = skill name or path to SKILL.md
+# init writes .herdr-tasks/prompts/review.md and points prompt at it.
+[review]
+agent = ""
+skill = ""
+prompt = ".herdr-tasks/prompts/review.md"
 
 # name shown on cards / form = key
 # command = argv started inside the Herdr pane (aliases, wrappers, flags allowed)
@@ -155,15 +165,15 @@ Description.
 - TUI and CLI share that root.
 - Fail clearly if missing, except `init`.
 
-Lanes: `backlog` | `in_progress` | `done`
+Lanes: `backlog` | `in_progress` | `review` | `done`
 
 ## TUI (`htasks board`)
 
 - Fields: title, description, type (from config `task_types`), agent (from config map), effort (`low`/`medium`/`high`/`xhigh`/`max` or none), project path (select from `[projects.*]` when present, else text), worktree (Yes/No, default No), blockers (select of other task ids)
 - Save → `.herdr-tasks/tasks/<prefix>-<next_id>.md`, bump `next_id`
-- 3 columns; card: id, title, type, agent key, project basename
+- 4 columns; card: id, title, type, agent key, project basename
 - Space select; Left/Right or h/l move; Esc clear; mouse click + drag
-- n create, c close Herdr layout (done), e edit, s settings, Enter preview, o focus Herdr layout (in_progress), ? help, q / Ctrl+C quit (destroy renderer)
+- n create, c close Herdr layout (done), e edit, s settings, Enter preview, o focus Herdr layout (in_progress / review), ? help, q / Ctrl+C quit (destroy renderer)
 - Form: Tab fields; Enter submit except in description (newline) and blockers (toggle); Ctrl+Enter always submits; Esc cancel; title required; project path must exist (select from `[projects.*]` when present); agent must be a config key; effort is applied when starting the agent; worktree is Yes/No (default No); blockers is a select of other tasks
 - Default project to cwd when inside a repo
 - Default agent to `default_agent`
@@ -183,11 +193,23 @@ Lanes: `backlog` | `in_progress` | `done`
 9. `herdr agent prompt <safe-name-or-pane>`:
    - read and execute the task file
    - absolute path to the markdown
-   - use `htasks` + skill path to update status
+   - use `htasks` + skill path to update status (`htasks move <id> review`)
 10. If Herdr server is down, start/attach once, retry create; surface stderr
 11. Never invent Herdr APIs. Capture IDs from JSON.
 12. Leaving `in_progress` does not kill Herdr in MVP.
 13. If `herdr.pane_id` already set, `move in_progress` only updates status (idempotent).
+
+## Move → `review` (shared hook: TUI and `htasks move`)
+
+1. Write `status=review`
+2. `herdr` must be on PATH; on failure revert/keep prior status and print error
+3. Resolve agent from `[review] agent` if set, else the task agent
+4. Create a new Herdr layout (do not reuse the in_progress pane). Worktree yes reuses the task checkout
+5. Start that agent's `command` in the pane
+6. Prompt with `[review] skill` name/text (if set), then the contents of the `[review] prompt` file (if set)
+7. Missing `[review] skill` or `[review] prompt` path is an error
+8. If already `review` and `herdr.pane_id` is still alive, only update status (idempotent)
+9. Leaving `review` does not kill Herdr in MVP
 
 ## CLI rules
 
@@ -205,7 +227,8 @@ Lanes: `backlog` | `in_progress` | `done`
 - `htasks root` / `htasks list --json` / `htasks show <id> --json`
 - Create: `htasks create --title T [--description D] [--type T] [--agent A] [--effort E] [--project P] [--status backlog] [--blockers id,id] [--worktree yes|no]`
 - Start work: `htasks move <id> in_progress`
-- Finish: `htasks move <id> done`
+- After implementation: `htasks move <id> review`
+- After review: `htasks move <id> done`
 - Do not create extra tasks unless asked
 - Do not kill Herdr panes
 - `htasks` = board CLI. `herdr` = multiplexer. `.herdr-tasks` = data dir.
@@ -216,8 +239,15 @@ Lanes: `backlog` | `in_progress` | `done`
 You are working task <id> in repo <project>.
 Read <abs-path-to-md>.
 Follow <abs-path-to-SKILL.md>.
-When complete: `htasks move <id> done`.
+When complete: `htasks move <id> review`.
 `herdr` is the multiplexer already running this <tab|workspace|pane>. `htasks` is the task board CLI.
+```
+
+### Review agent prompt template
+
+```text
+<skill name>          # [review] skill, if set
+<prompt file body>    # contents of [review] prompt, if set
 ```
 
 ## Project structure

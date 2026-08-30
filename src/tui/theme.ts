@@ -6,6 +6,7 @@ import {
   type ThemeName,
   type ThemePalette,
 } from "../lib/themes.ts"
+import type { Lane } from "../lib/types.ts"
 
 export function tuiColor(): boolean {
   return colorEnabled(process.stdout)
@@ -22,11 +23,9 @@ export function useTheme(): ThemePalette {
   return useContext(ThemeContext)
 }
 
-export function laneColor(
-  lane: "backlog" | "in_progress" | "done",
-  colors: ThemePalette = THEMES[DEFAULT_THEME],
-): string {
+export function laneColor(lane: Lane, colors: ThemePalette = THEMES[DEFAULT_THEME]): string {
   if (lane === "in_progress") return colors.progress
+  if (lane === "review") return colors.review
   if (lane === "done") return colors.done
   return colors.backlog
 }

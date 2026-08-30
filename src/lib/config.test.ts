@@ -2,11 +2,12 @@ import { afterEach, expect, test } from "bun:test"
 import { mkdtemp, rm } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import { applySettings, loadConfig, parseConfig, setConfigValue } from "./config.ts"
+import { mkdir } from "node:fs/promises"
+import { applySettings, loadConfig, parseConfig, resolveReviewSkillPath, setConfigValue } from "./config.ts"
 import { ensureDir } from "./fs.ts"
-import { pathsFor } from "./root.ts"
-import { stringifyConfig } from "./toml.ts"
-import type { Config } from "./types.ts"
+import { REVIEW_PROMPT_REL, pathsFor } from "./root.ts"
+import { defaultConfigToml, stringifyConfig } from "./toml.ts"
+import { EMPTY_REVIEW, type Config } from "./types.ts"
 
 const dirs: string[] = []
 
@@ -19,7 +20,7 @@ function cfg(extra = "") {
 prefix = "dev"
 default_agent = "claude"
 default_project = ""
-lanes = ["backlog", "in_progress", "done"]
+lanes = ["backlog", "in_progress", "review", "done"]
 next_id = 1
 herdr_bin = "herdr"
 ${extra}
@@ -35,7 +36,7 @@ function sample(partial: Partial<Config> = {}): Config {
     default_agent: "claude",
     default_project: "",
     theme: "nord",
-    lanes: ["backlog", "in_progress", "done"],
+    lanes: ["backlog", "in_progress", "review", "done"],
     next_id: 1,
     herdr_bin: "herdr",
     herdr_behavior: "workspace",
@@ -43,6 +44,7 @@ function sample(partial: Partial<Config> = {}): Config {
     projects: {},
     task_types: ["feat", "fix", "bug", "chore", "docs", "refactor", "test"],
     default_type: "feat",
+    review: { ...EMPTY_REVIEW },
     ...partial,
   }
 }
@@ -237,6 +239,68 @@ test("stringifyConfig omits projects when empty", () => {
   expect(stringifyConfig(sample())).not.toContain("[projects")
 })
 
+test("parses [review] table", () => {
+  const config = parseConfig(`
+prefix = "dev"
+default_agent = "claude"
+next_id = 1
+
+[agents.claude]
+command = "ccc"
+
+[review]
+agent = "claude"
+skill = "skills/review/SKILL.md"
+prompt = "Look for regressions."
+`)
+  expect(config.review).toEqual({
+    agent: "claude",
+    skill: "skills/review/SKILL.md",
+    prompt: "Look for regressions.",
+  })
+  expect(config.lanes).toEqual(["backlog", "in_progress", "review", "done"])
+})
+
+test("review defaults to empty and lanes are canonical", () => {
+  const config = parseConfig(cfg())
+  expect(config.review).toEqual({ agent: "", skill: "", prompt: "" })
+  expect(config.lanes).toEqual(["backlog", "in_progress", "review", "done"])
+})
+
+test("defaultConfigToml points [review] prompt at the shipped prompt file", () => {
+  const config = parseConfig(
+    defaultConfigToml({ prefix: "dev", defaultAgent: "claude", defaultProject: "" }),
+  )
+  expect(config.review.prompt).toBe(REVIEW_PROMPT_REL)
+})
+
+test("unknown lane in config is an error", () => {
+  expect(() =>
+    parseConfig(`
+prefix = "dev"
+default_agent = "claude"
+lanes = ["backlog", "later"]
+next_id = 1
+
+[agents.claude]
+command = "ccc"
+`),
+  ).toThrow(/Unknown lane/)
+})
+
+test("stringifyConfig writes [review] section", () => {
+  const text = stringifyConfig(
+    sample({
+      review: { agent: "pi", skill: "review.md", prompt: "Be strict." },
+    }),
+  )
+  expect(text).toContain("[review]")
+  expect(text).toContain('agent = "pi"')
+  expect(text).toContain('skill = "review.md"')
+  expect(text).toContain('prompt = "Be strict."')
+  expect(parseConfig(text).review.agent).toBe("pi")
+})
+
 test("loadConfig rewrites legacy herdr keys into [herdr]", async () => {
   const dir = await mkdtemp(join(tmpdir(), "htasks-cfg-"))
   dirs.push(dir)
@@ -264,4 +328,32 @@ kind = "pi"
   expect(text).toContain('behavior = "tab"')
   expect(text).not.toContain("herdr_bin")
   expect(text).not.toContain("herdr_behavior")
+})
+
+test("resolveReviewSkillPath accepts a skill name from .agents/skills", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "htasks-skill-"))
+  dirs.push(dir)
+  const skillFile = join(dir, ".agents/skills/thermo-nuclear-code-quality-review/SKILL.md")
+  await mkdir(join(dir, ".agents/skills/thermo-nuclear-code-quality-review"), { recursive: true })
+  await Bun.write(skillFile, "# review\n")
+  expect(await resolveReviewSkillPath(dir, "thermo-nuclear-code-quality-review", { home: dir })).toBe(
+    skillFile,
+  )
+})
+
+test("resolveReviewSkillPath still accepts a filesystem path", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "htasks-skill-"))
+  dirs.push(dir)
+  const skillFile = join(dir, "custom/SKILL.md")
+  await mkdir(join(dir, "custom"), { recursive: true })
+  await Bun.write(skillFile, "# review\n")
+  expect(await resolveReviewSkillPath(dir, "custom/SKILL.md", { home: dir })).toBe(skillFile)
+})
+
+test("resolveReviewSkillPath fails on an unknown skill name", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "htasks-skill-"))
+  dirs.push(dir)
+  await expect(resolveReviewSkillPath(dir, "nope-skill", { home: dir })).rejects.toThrow(
+    /Review skill not found: nope-skill/,
+  )
 })

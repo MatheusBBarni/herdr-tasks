@@ -4,7 +4,7 @@ import {
   listAgentStatuses,
   type LiveAgentStatus,
 } from "../lib/herdr.ts"
-import type { Task } from "../lib/types.ts"
+import { isLaunchLane, type Task } from "../lib/types.ts"
 
 const POLL_MS = 1500
 const COALESCE_MS = 80
@@ -13,7 +13,7 @@ export function inProgressPaneIds(tasks: readonly Task[]): string[] {
   const ids: string[] = []
   const seen = new Set<string>()
   for (const task of tasks) {
-    if (task.status !== "in_progress") continue
+    if (!isLaunchLane(task.status)) continue
     const id = task.herdr.pane_id?.trim()
     if (!id || seen.has(id)) continue
     seen.add(id)

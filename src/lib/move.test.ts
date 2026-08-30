@@ -1,8 +1,8 @@
 import { afterEach, expect, test } from "bun:test"
-import { mkdtemp, rm } from "node:fs/promises"
+import { mkdir, mkdtemp, rm } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import { setConfigValue } from "./config.ts"
+import { loadConfig, saveConfig, setConfigValue } from "./config.ts"
 import type { HerdrRunner } from "./herdr.ts"
 import { moveTask } from "./move.ts"
 import { createTask, getTask, initBoard, writeTask } from "./store.ts"
@@ -156,7 +156,9 @@ test("move in_progress launches herdr and stores pane id", async () => {
   expect(moved.herdr.pane_id).toBe("w1:p1")
   expect(calls.some((args) => args[0] === "workspace" && args[1] === "create")).toBe(true)
   expect(calls.some((args) => args[0] === "pane" && args[1] === "run")).toBe(true)
-  expect(calls.some((args) => args[0] === "agent" && args[1] === "prompt")).toBe(true)
+  const prompt = calls.find((args) => args[0] === "agent" && args[1] === "prompt")
+  expect(prompt?.[3]).toContain(`htasks move ${task.id} review`)
+  expect(prompt?.[3]).not.toContain(`htasks move ${task.id} done`)
 })
 
 test("move in_progress reverts status when herdr fails", async () => {
@@ -307,4 +309,107 @@ test("worktree create failure reverts status", async () => {
 test("bad lane is an error", async () => {
   const { paths, task } = await tempBoard()
   await expect(moveTask(paths, task.id, "later")).rejects.toThrow(/Unknown lane/)
+})
+
+test("move review launches herdr and sends the review prompt", async () => {
+  const { paths, task } = await tempBoard()
+  const { runner, calls } = mockHerdr()
+  const moved = await moveTask(paths, task.id, "review", { runner })
+  expect(moved.status).toBe("review")
+  expect(moved.herdr.pane_id).toBe("w1:p1")
+  const prompt = calls.find((args) => args[0] === "agent" && args[1] === "prompt")
+  expect(prompt?.[3]).toBe(
+    "Review the implementation against the task file.\n\n- Requirements in the task are actually done\n- Tests cover the change (add them if they are missing)\n- No regressions, debug leftovers, or unrelated refactors\n- The code matches surrounding style and naming\n\nStay in scope. If the work is not ready, say what is missing and do not move the task.",
+  )
+})
+
+test("move review from in_progress launches even if pane_id is set", async () => {
+  const { paths, task } = await tempBoard()
+  const first = await moveTask(paths, task.id, "in_progress", { runner: mockHerdr().runner })
+  expect(first.herdr.pane_id).toBe("w1:p1")
+  const { runner, calls } = mockHerdr({ pane: "w1:p2" })
+  const moved = await moveTask(paths, first.id, "review", { runner })
+  expect(moved.status).toBe("review")
+  expect(moved.herdr.pane_id).toBe("w1:p2")
+  expect(calls.some((args) => args[0] === "workspace" && args[1] === "create")).toBe(true)
+  const prompt = calls.find((args) => args[0] === "agent" && args[1] === "prompt")
+  expect(prompt?.[3]).toContain("Review the implementation against the task file.")
+  expect(prompt?.[3]).not.toContain("You are reviewing task")
+})
+
+test("move review is idempotent when already in review with a live pane", async () => {
+  const { paths, task } = await tempBoard()
+  const first = await moveTask(paths, task.id, "review", { runner: mockHerdr().runner })
+  const { runner, calls } = mockHerdr()
+  const second = await moveTask(paths, first.id, "review", { runner })
+  expect(second.status).toBe("review")
+  expect(second.herdr.pane_id).toBe(first.herdr.pane_id)
+  expect(calls.some((args) => args[0] === "workspace")).toBe(false)
+})
+
+test("move review uses [review] agent skill and prompt", async () => {
+  const { dir, paths } = await tempBoard()
+  const skillPath = join(dir, "review-skill.md")
+  const promptPath = join(dir, "custom-review.md")
+  await Bun.write(skillPath, "# review\n")
+  await Bun.write(promptPath, "Be picky about names.\n")
+  const config = await loadConfig(paths)
+  config.review = { agent: "codex", skill: skillPath, prompt: promptPath }
+  await saveConfig(paths, config)
+  const task = await createTask(paths, { title: "Needs review", agent: "claude" }, dir)
+  const { runner, calls } = mockHerdr()
+  await moveTask(paths, task.id, "review", { runner })
+  expect(calls.some((args) => args[0] === "pane" && args[1] === "run" && args[3] === "codex")).toBe(
+    true,
+  )
+  const prompt = calls.find((args) => args[0] === "agent" && args[1] === "prompt")
+  expect(prompt?.[3]).toBe(`${skillPath}\nBe picky about names.`)
+})
+
+test("move review fails when the configured prompt file is missing", async () => {
+  const { paths, task } = await tempBoard()
+  const config = await loadConfig(paths)
+  config.review = { agent: "", skill: "", prompt: "missing-review-prompt.md" }
+  await saveConfig(paths, config)
+  await expect(moveTask(paths, task.id, "review", { runner: mockHerdr().runner })).rejects.toThrow(
+    /Review prompt not found/,
+  )
+  const loaded = await getTask(paths, task.id)
+  expect(loaded.status).toBe("backlog")
+})
+
+test("move review reverts status when herdr fails", async () => {
+  const { paths, task } = await tempBoard()
+  const { runner } = mockHerdr({ failCreate: true })
+  await expect(moveTask(paths, task.id, "review", { runner })).rejects.toThrow(/server down/)
+  const loaded = await getTask(paths, task.id)
+  expect(loaded.status).toBe("backlog")
+})
+
+test("move review resolves [review] skill by name", async () => {
+  const { dir, paths } = await tempBoard()
+  const skillFile = join(dir, ".agents/skills/thermo-nuclear-code-quality-review/SKILL.md")
+  await mkdir(join(dir, ".agents/skills/thermo-nuclear-code-quality-review"), { recursive: true })
+  await Bun.write(skillFile, "# thermo\n")
+  const config = await loadConfig(paths)
+  config.review = { ...config.review, skill: "thermo-nuclear-code-quality-review" }
+  await saveConfig(paths, config)
+  const task = await createTask(paths, { title: "Needs named skill" }, dir)
+  const { runner, calls } = mockHerdr()
+  await moveTask(paths, task.id, "review", { runner })
+  const prompt = calls.find((args) => args[0] === "agent" && args[1] === "prompt")
+  expect(prompt?.[3]?.startsWith("thermo-nuclear-code-quality-review\n")).toBe(true)
+  expect(prompt?.[3]).not.toContain(skillFile)
+})
+
+test("move review fails when the configured skill is missing", async () => {
+  const { paths, task } = await tempBoard()
+  const config = await loadConfig(paths)
+  config.review = { agent: "", skill: "missing-review.md", prompt: "" }
+  await saveConfig(paths, config)
+  await expect(moveTask(paths, task.id, "review", { runner: mockHerdr().runner })).rejects.toThrow(
+    /Review skill not found/,
+  )
+  const loaded = await getTask(paths, task.id)
+  expect(loaded.status).toBe("backlog")
 })

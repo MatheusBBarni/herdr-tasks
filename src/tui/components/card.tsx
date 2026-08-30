@@ -59,6 +59,7 @@ export function cardStatusView(opts: {
     }
   }
   if (opts.lane === "in_progress") return { label: "in_progress", tone: "warn" }
+  if (opts.lane === "review") return { label: "review", tone: "accent" }
   return { label: "idle", tone: "muted" }
 }
 

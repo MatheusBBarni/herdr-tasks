@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test"
-import type { Config } from "../../lib/types.ts"
+import { EMPTY_REVIEW, type Config } from "../../lib/types.ts"
 import { classifyFormError, defaultFormValues, formLayout } from "./form.tsx"
 
 function cfg(partial: Partial<Config> = {}): Config {
@@ -8,7 +8,7 @@ function cfg(partial: Partial<Config> = {}): Config {
     default_agent: "pi",
     default_project: "",
     theme: "nord",
-    lanes: ["backlog", "in_progress", "done"],
+    lanes: ["backlog", "in_progress", "review", "done"],
     next_id: 1,
     herdr_bin: "herdr",
     herdr_behavior: "workspace",
@@ -16,6 +16,7 @@ function cfg(partial: Partial<Config> = {}): Config {
     projects: {},
     task_types: ["feat", "fix"],
     default_type: "feat",
+    review: { ...EMPTY_REVIEW },
     ...partial,
   }
 }

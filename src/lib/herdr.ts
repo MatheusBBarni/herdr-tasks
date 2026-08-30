@@ -1,6 +1,6 @@
 import { resolveKind } from "./agents.ts"
 import { commandWithEffort } from "./effort.ts"
-import type { AgentEntry, HerdrBehavior, Task } from "./types.ts"
+import { isLaunchLane, type AgentEntry, type HerdrBehavior, type Task } from "./types.ts"
 import { linkBoardIntoWorktree, worktreeBranch } from "./worktree.ts"
 
 export type HerdrRunResult = {
@@ -410,8 +410,8 @@ export async function focusTaskLayout(opts: {
   const { bin, task } = opts
   const noun = layoutNoun(behavior)
 
-  if (task.status !== "in_progress") {
-    throw new HerdrError(`${task.id} is not in progress.`)
+  if (!isLaunchLane(task.status)) {
+    throw new HerdrError(`${task.id} is not in progress or review.`)
   }
 
   const paneId = task.herdr.pane_id
@@ -595,9 +595,15 @@ export function firstPrompt(task: Task, skillPath: string, behavior: HerdrBehavi
     `You are working task ${task.id} in repo ${task.project}.`,
     `Read ${task.filePath}.`,
     `Follow ${skillPath}.`,
-    `When complete: \`htasks move ${task.id} done\`.`,
+    `When complete: \`htasks move ${task.id} review\`.`,
     "`herdr` is the multiplexer already running this " + place + ". `htasks` is the task board CLI.",
   ].join("\n")
+}
+
+export function reviewPrompt(opts: { skill?: string; prompt?: string } = {}): string {
+  const skill = opts.skill?.trim() ?? ""
+  const prompt = opts.prompt?.trim() ?? ""
+  return [skill, prompt].filter(Boolean).join("\n")
 }
 
 async function waitForAgentOnPane(
@@ -625,6 +631,7 @@ export async function launchInProgress(opts: {
   agent: AgentEntry
   agentKey: string
   skillPath: string
+  prompt?: string
   behavior?: HerdrBehavior
   runner?: HerdrRunner
   env?: NodeJS.Dict<string | undefined>
@@ -714,7 +721,8 @@ export async function launchInProgress(opts: {
 
   await runner(bin, ["agent", "wait", created.pane_id, "--until", "idle", "--timeout", String(detectMs)])
 
-  const promptText = firstPrompt({ ...task, project: layoutTask.project }, opts.skillPath, behavior)
+  const promptText =
+    opts.prompt ?? firstPrompt({ ...task, project: layoutTask.project }, opts.skillPath, behavior)
   const prompt = await runner(bin, ["agent", "prompt", created.pane_id, promptText])
   if (prompt.code !== 0) {
     const typed = await runner(bin, ["agent", "send-keys", created.pane_id, "enter"])

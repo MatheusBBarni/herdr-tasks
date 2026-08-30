@@ -61,7 +61,13 @@ function printTaskTable(tasks: Task[]): void {
     id: task.id,
     status: paint(
       color,
-      task.status === "done" ? "green" : task.status === "in_progress" ? "yellow" : "dim",
+      task.status === "done"
+        ? "green"
+        : task.status === "in_progress"
+          ? "yellow"
+          : task.status === "review"
+            ? "cyan"
+            : "dim",
       task.status,
     ),
     type: task.type,

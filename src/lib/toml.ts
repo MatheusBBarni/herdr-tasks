@@ -1,3 +1,4 @@
+import { REVIEW_PROMPT_REL } from "./root.ts"
 import type { Config } from "./types.ts"
 
 function tomlString(value: string): string {
@@ -46,6 +47,11 @@ export function stringifyConfig(config: Config): string {
     lines.push(`path = ${tomlString(project.path)}`)
     lines.push("")
   }
+  lines.push("[review]")
+  lines.push(`agent = ${tomlString(config.review.agent)}`)
+  lines.push(`skill = ${tomlString(config.review.skill)}`)
+  lines.push(`prompt = ${tomlString(config.review.prompt)}`)
+  lines.push("")
   return `${lines.join("\n").trimEnd()}\n`
 }
 
@@ -60,13 +66,21 @@ default_agent = ${tomlString(opts.defaultAgent)}
 default_project = ${tomlString(opts.defaultProject)}
 task_types = ["feat", "fix", "bug", "chore", "docs", "refactor", "test"]
 default_type = "feat"
-lanes = ["backlog", "in_progress", "done"]
+lanes = ["backlog", "in_progress", "review", "done"]
 next_id = 1
 
 [herdr]
 bin = "herdr"
 # tab | workspace | pane
 behavior = "workspace"
+
+# Review lane: after in_progress, move here. Empty agent uses the task's agent.
+# skill = skill name (thermo-nuclear-code-quality-review) or path to SKILL.md
+# prompt = extra prompt file (absolute or relative to the board root)
+[review]
+agent = ""
+skill = ""
+prompt = ${tomlString(REVIEW_PROMPT_REL)}
 
 # name shown on cards / form = key
 # command = argv started inside the Herdr pane (aliases, wrappers, flags allowed)

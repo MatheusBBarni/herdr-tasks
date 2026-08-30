@@ -24,6 +24,10 @@ test("cardStatusView maps lane and live agent state", () => {
     label: "in_progress",
     tone: "warn",
   })
+  expect(cardStatusView({ launching: false, lane: "review" })).toEqual({
+    label: "review",
+    tone: "accent",
+  })
   expect(
     cardStatusView({ launching: false, lane: "in_progress", agentStatus: "working" }),
   ).toEqual({ label: "working", tone: "accent" })
@@ -53,11 +57,16 @@ test("cardAgentLine drops the default project and keeps a different basename", (
   ).toBe("pi  other")
 })
 
-test("card title and status lines truncate by cell width at 80×24 three-column and 60-col floor", () => {
-  const title = cardTitleLine("dev-14", "Show Herdr agent status", cardInnerWidth(26, false))
+test("card title and status lines truncate by cell width at 80×24 four-column and 60-col floor", () => {
+  const title = cardTitleLine("dev-14", "Show Herdr agent status", cardInnerWidth(20, false))
   expect(title.startsWith("dev-14")).toBe(true)
   expect(title).not.toContain("\n")
-  expect(cellWidth(title)).toBeLessThanOrEqual(cardInnerWidth(26, false))
+  expect(cellWidth(title)).toBeLessThanOrEqual(cardInnerWidth(20, false))
+
+  const threeCol = cardTitleLine("dev-14", "Show Herdr agent status", cardInnerWidth(26, false))
+  expect(threeCol.startsWith("dev-14")).toBe(true)
+  expect(threeCol).not.toContain("\n")
+  expect(cellWidth(threeCol)).toBeLessThanOrEqual(cardInnerWidth(26, false))
 
   const wide = cardTitleLine("dev-14", "Show Herdr agent status", cardInnerWidth(60, false))
   expect(wide).toContain("Show Herdr agent status")

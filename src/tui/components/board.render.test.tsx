@@ -76,6 +76,7 @@ test("board shows live status on in_progress cards at 80x24", async () => {
   const frame = await renderBoard(80, false)
   expect(frame).toContain("htasks")
   expect(frame).toContain("IN PROGRESS")
+  expect(frame).toContain("REVIEW")
   expect(frame).toContain("dev-14")
   expect(frame).toContain("working")
   expect(frame).toContain("pi")
