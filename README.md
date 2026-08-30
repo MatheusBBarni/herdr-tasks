@@ -11,7 +11,7 @@ Agents update status with `htasks`, never by editing markdown.
 
 ## Features
 
-- Terminal Kanban (`htasks board`) with backlog / in_progress / done
+- Terminal Kanban (`htasks board`) with backlog / in_progress / review / done
 - Settings modal (`s`) for theme, default agent, and Herdr layout
 - One-shot CLI for list, show, create, edit, and move
 - `--json` on stdout for agents; compact tables for humans
@@ -90,7 +90,7 @@ htasks agents remove <name>
 htasks doctor [--json]
 ```
 
-Lanes: `backlog`, `in_progress`, `done`.
+Lanes: `backlog`, `in_progress`, `review`, `done`.
 
 Unknown id, bad lane, missing project path, unknown agent key, unknown type, unknown effort, unknown worktree, or unknown blocker exits non-zero.
 A task with unfinished blockers cannot move to `in_progress`.
@@ -181,7 +181,7 @@ The task file still stores the resolved path.
 
 ## Herdr layout
 
-`[herdr] behavior` in `.herdr-tasks/config.toml` chooses where a card goes when it enters In Progress:
+`[herdr] behavior` in `.herdr-tasks/config.toml` chooses where a card goes when it enters In Progress or Review:
 
 | Value | Herdr command |
 |-------|----------------|
@@ -201,7 +201,7 @@ Cycling the theme field in settings previews live; Esc discards, Ctrl+Enter save
 The board does not block on Herdr.
 The card shows `starting…` until the launch finishes.
 In Progress cards poll `herdr agent list` and show one live lifecycle word (`working`, `blocked`, `idle`, `done`, `unknown`, or `gone`) before the agent key and project. That status stays in board memory — it is never written to task markdown. Herdr `done` means unseen idle; it does not finish the task.
-Press `o` on an in-progress card to focus that layout (`workspace focus`, `tab focus`, or `agent focus` for pane).
+Press `o` on an in-progress or review card to focus that layout (`workspace focus`, `tab focus`, or `agent focus` for pane).
 Press `c` on a done card to close that layout (`workspace close`, `tab close`, or `pane close`).
 
 Leaving `in_progress` does not close that layout.
@@ -224,7 +224,7 @@ Below 40×10 it says the terminal is too small.
 | e | Edit (not done) |
 | s | Settings (theme, default agent, herdr behavior, …) |
 | enter | Preview |
-| o | Focus the Herdr pane/tab/workspace for an in-progress card |
+| o | Focus the Herdr pane/tab/workspace for an in-progress or review card |
 | ? | Help |
 | q / Ctrl+C | Quit (`renderer.destroy()`) |
 
@@ -257,9 +257,10 @@ The board watches `.herdr-tasks/tasks`, so a CLI `move` shows up without a resta
 
 ## Skill
 
-`htasks init` copies `skills/htasks/SKILL.md` into `.herdr-tasks/skills/htasks/`.
+`htasks init` copies `skills/htasks/SKILL.md` into `.herdr-tasks/skills/htasks/` and a default review prompt into `.herdr-tasks/prompts/review.md`.
 Agents should use only `htasks` (never hand-edit task markdown).
-Finish with `htasks move <id> done`.
+After implementation: `htasks move <id> review`.
+After review: `htasks move <id> done`.
 
 The first prompt sent into Herdr looks like:
 
@@ -267,15 +268,39 @@ The first prompt sent into Herdr looks like:
 You are working task <id> in repo <project>.
 Read <abs-path-to-md>.
 Follow <abs-path-to-SKILL.md>.
-When complete: `htasks move <id> done`.
+When complete: `htasks move <id> review`.
 `herdr` is the multiplexer already running this <tab|workspace|pane>. `htasks` is the task board CLI.
 ```
+
+## Review lane
+
+After In Progress, move the card to **Review**.
+That starts a **new** Herdr layout (it does not reuse the implementer pane) and sends `[review] skill` (the name/text) then the `[review] prompt` file.
+
+Configure it in `.herdr-tasks/config.toml`:
+
+```toml
+[review]
+# optional agent map key; empty uses the task's agent
+agent = ""
+# skill name (.agents/skills/<name>/SKILL.md) or path to SKILL.md
+skill = "thermo-nuclear-code-quality-review"
+# extra prompt file (absolute or relative to the board root)
+prompt = ".herdr-tasks/prompts/review.md"
+```
+
+`htasks init` writes that prompt file and points `[review] prompt` at it.
+Edit the file to change what the reviewer is asked to do.
+
+You can skip review with `htasks move <id> done` from in_progress.
 
 ## Data
 
 ```text
 .herdr-tasks/
   config.toml
+  prompts/
+    review.md
   tasks/
     <prefix>-<n>.md
   skills/
@@ -292,6 +317,7 @@ Source of truth is markdown + YAML frontmatter, not the cache.
   There is no auto-kill.
   Press `c` on a done card to close the stored pane, tab, or workspace.
 - If a pane is already stored on the task and still alive, `move in_progress` only updates status.
+- `move review` always starts a new layout when coming from another lane. If the task is already in review and the pane is alive, it only updates status.
 - If the Herdr server is down, htasks tries `herdr server` once and retries.
   If that fails, start Herdr yourself and retry the move.
 - `htasks config set` rewrites `config.toml` and drops comments.

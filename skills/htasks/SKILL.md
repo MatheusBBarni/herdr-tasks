@@ -12,6 +12,7 @@ htasks list --json
 htasks show <id> --json
 htasks create --title T [--description D] [--type T] [--agent A] [--effort E] [--project P] [--status backlog] [--blockers id,id] [--worktree yes|no]
 htasks move <id> in_progress
+htasks move <id> review
 htasks move <id> done
 ```
 
@@ -24,7 +25,8 @@ A task cannot `move … in_progress` while any blocker is not `done`.
 ## Rules
 
 - Start work with `htasks move <id> in_progress` (no-op if a pane is already attached).
-- Finish with `htasks move <id> done`.
+- When implementation is complete: `htasks move <id> review`.
+- After review: `htasks move <id> done`.
 - Do not create extra tasks unless asked.
 - Do not kill Herdr panes.
 - Do not guess agent binaries; unknown `agent` keys are errors.

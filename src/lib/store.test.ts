@@ -3,6 +3,7 @@ import { mkdtemp, rm } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { loadConfig, saveConfig } from "./config.ts"
+import { REVIEW_PROMPT_REL } from "./root.ts"
 import { createTask, editTask, getTask, initBoard, listTasks, parseTaskMarkdown, renderTaskMarkdown } from "./store.ts"
 
 const dirs: string[] = []
@@ -18,7 +19,7 @@ async function tempBoard() {
   return { dir, paths }
 }
 
-test("init writes config, tasks dir, and skill", async () => {
+test("init writes config, tasks dir, skill, and review prompt", async () => {
   const { paths } = await tempBoard()
   const config = await loadConfig(paths)
   expect(config.prefix).toBe("dev")
@@ -28,8 +29,12 @@ test("init writes config, tasks dir, and skill", async () => {
   expect(config.theme).toBe("nord")
   expect(config.task_types).toContain("feat")
   expect(config.default_type).toBe("feat")
+  expect(config.review.prompt).toBe(REVIEW_PROMPT_REL)
   expect(await Bun.file(paths.configPath).text()).toContain("[herdr]")
+  expect(await Bun.file(paths.configPath).text()).toContain(REVIEW_PROMPT_REL)
   expect(await Bun.file(paths.skillPath).exists()).toBe(true)
+  expect(await Bun.file(paths.reviewPromptPath).exists()).toBe(true)
+  expect(await Bun.file(paths.reviewPromptPath).text()).toContain("Review the implementation")
 })
 
 test("create and get task markdown", async () => {

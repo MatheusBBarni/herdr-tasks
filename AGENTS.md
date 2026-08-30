@@ -96,7 +96,7 @@ Authoritative APIs: the **opentui** skill. Do not invent components, hooks, or H
 
 - Parent needs explicit size before `%` width or `flexGrow` work (`height="100%"` / `width="100%"`).
 - Prefer direct layout props over inline `style={{…}}` objects (new object every render).
-- Usable at **80×24**. Pressure-test **60 columns**. Too-small must be an honest state, not clipped garbage. Three Kanban columns need a single-pane fallback.
+- Usable at **80×24**. Pressure-test **60 columns**. Too-small must be an honest state, not clipped garbage. Four Kanban columns need a single-pane fallback below 80 columns.
 - Measure **terminal cell width**, not `string.length`. Truncate; don’t wrap inside cards. Full text lives in preview/form.
 - Clutter audit: at most one border between terminal edge and card content. Don’t encode the same state four ways.
 
@@ -144,6 +144,8 @@ Discovery: walk up from cwd to `.herdr-tasks/config.toml`. TUI and CLI share tha
 ```text
 .herdr-tasks/
   config.toml
+  prompts/
+    review.md
   tasks/
     <prefix>-<n>.md
   skills/
@@ -152,7 +154,7 @@ Discovery: walk up from cwd to `.herdr-tasks/config.toml`. TUI and CLI share tha
 
 Optional cache: `.herdr-tasks/.index.json`. **Source of truth is markdown + YAML frontmatter**, not the cache.
 
-Lanes: `backlog` | `in_progress` | `done`.
+Lanes: `backlog` | `in_progress` | `review` | `done`.
 
 Task `agent` stores the **map key** (e.g. `claude`), not the raw command. Unknown key → error, list known keys, do not guess a binary.
 
@@ -170,10 +172,24 @@ Shared hook. Do not invent Herdr APIs. Capture IDs from JSON.
 6. Parse JSON; save `workspace_id` + `pane_id`.
 7. Start `command` in that pane (project cwd), appending the task's effort flag for the agent `kind` when effort is set. Register/detect with `kind` only if required. If `agent start` would ignore `command`, do not use that path.
 8. `safe-name` = slug(task id), `[a-z][a-z0-9_-]{0,31}`, unique.
-9. `herdr agent prompt …` with the first-prompt template from `htasks-prompt.md` (read the task file, follow the skill, `htasks move <id> done`).
+9. `herdr agent prompt …` with the first-prompt template from `htasks-prompt.md` (read the task file, follow the skill, `htasks move <id> review`).
 10. If Herdr server is down, start/attach once, retry create; surface stderr.
 11. Leaving `in_progress` does **not** kill Herdr in MVP.
 12. If `herdr.pane_id` already set, `move in_progress` only updates status (idempotent).
+
+## Move → `review` (TUI and `htasks move`)
+
+Shared hook. Same Herdr launch as `in_progress`, then a review prompt.
+
+1. Write `status=review`.
+2. `herdr` must be on PATH; on failure revert/keep prior status and print error.
+3. Resolve agent from `[review] agent` if set, else the task agent. Unknown key → error.
+4. If `worktree` is yes, reuse/create the task worktree then create layout from `[herdr] behavior`. Otherwise create layout in the task project.
+5. Start that agent's `command` in the new pane. Do not reuse the in_progress pane.
+6. `herdr agent prompt …` with `[review] skill` name/text (if set), then the `[review] prompt` file body (if set).
+7. Missing `[review] skill` name/path or `[review] prompt` path → error and revert.
+8. If already `review` and `herdr.pane_id` is still alive, only update status (idempotent).
+9. Leaving `review` does **not** kill Herdr in MVP.
 
 ## Project layout (target)
 
@@ -197,10 +213,10 @@ Ship `skills/htasks/SKILL.md` and copy it to `.herdr-tasks/skills/htasks/` on `i
 
 ## TUI (`htasks board`)
 
-- Columns: backlog / in_progress / done.
+- Columns: backlog / in_progress / review / done.
 - Card: id, title, type, agent key, project basename.
 - Space select; Left/Right or h/l move; Esc clear; mouse click + drag if possible.
-- n create, c close Herdr layout (done), e edit, s settings, Enter preview, o focus Herdr layout (in_progress), ? help, q / Ctrl+C quit (`renderer.destroy()`).
+- n create, c close Herdr layout (done), e edit, s settings, Enter preview, o focus Herdr layout (in_progress / review), ? help, q / Ctrl+C quit (`renderer.destroy()`).
 - Form: Tab fields; Enter submit except in description (newline) and blockers (toggle); Ctrl+Enter always submits; Esc cancel; title required; project path must exist (select from `[projects.*]` when present); agent must be a config key; type is a `task_types` key or none; effort is `low`/`medium`/`high`/`xhigh`/`max` or none and is applied when starting the agent; worktree is Yes/No (default No); blockers is a select of other tasks.
 - Default project to cwd when inside a repo; default agent to `default_agent`; default type to `default_type`.
 

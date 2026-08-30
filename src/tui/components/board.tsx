@@ -1,5 +1,5 @@
 import type { LiveAgentStatus } from "../../lib/herdr.ts"
-import { LANES, type Lane, type Task } from "../../lib/types.ts"
+import { LANES, isLaunchLane, type Lane, type Task } from "../../lib/types.ts"
 import { HINTS_NARROW, HINTS_WIDE, fitHints, hintsForTask } from "../hints.ts"
 import { Column } from "./column.tsx"
 import { HintBar } from "./hint-bar.tsx"
@@ -44,11 +44,11 @@ export function Board(props: BoardProps) {
     hintsForTask(props.singlePane ? HINTS_NARROW : HINTS_WIDE, focusedTask),
     props.width,
   )
-  const inProgressCount = byLane("in_progress").length
+  const liveCount = props.tasks.filter((task) => isLaunchLane(task.status)).length
   const running = liveRunningCount({
     launchingIds: props.launchingIds,
     agentStatuses: props.agentStatuses,
-    inProgressCount,
+    inProgressCount: liveCount,
   })
 
   return (

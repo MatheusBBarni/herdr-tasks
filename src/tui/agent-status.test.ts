@@ -28,6 +28,7 @@ test("inProgressPaneIds joins stored pane_id only", () => {
       task({ id: "dev-3", status: "in_progress", herdr: { workspace_id: "wP", pane_id: "wP:pV", agent_name: null } }),
       task({ id: "dev-4", status: "in_progress", herdr: { workspace_id: "wP", pane_id: "wP:pV", agent_name: null } }),
       task({ id: "dev-5", status: "done", herdr: { workspace_id: "w2", pane_id: "w2:p1", agent_name: null } }),
+      task({ id: "dev-6", status: "review", herdr: { workspace_id: "wR", pane_id: "wR:p1", agent_name: null } }),
     ]),
-  ).toEqual(["wP:pV"])
+  ).toEqual(["wP:pV", "wR:p1"])
 })

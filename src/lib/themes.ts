@@ -17,6 +17,7 @@ export type ThemePalette = {
   error: string
   backlog: string
   progress: string
+  review: string
   done: string
 }
 
@@ -33,6 +34,7 @@ export const THEMES: Record<ThemeName, ThemePalette> = {
     error: "#bf616a",
     backlog: "#7b88a1",
     progress: "#ebcb8b",
+    review: "#b48ead",
     done: "#a3be8c",
   },
   catppuccin: {
@@ -47,6 +49,7 @@ export const THEMES: Record<ThemeName, ThemePalette> = {
     error: "#f38ba8",
     backlog: "#a6adc8",
     progress: "#f9e2af",
+    review: "#cba6f7",
     done: "#a6e3a1",
   },
   catppuccin_light: {
@@ -61,6 +64,7 @@ export const THEMES: Record<ThemeName, ThemePalette> = {
     error: "#d20f39",
     backlog: "#6c6f85",
     progress: "#df8e1d",
+    review: "#8839ef",
     done: "#40a02b",
   },
   light: {
@@ -75,6 +79,7 @@ export const THEMES: Record<ThemeName, ThemePalette> = {
     error: "#cf222e",
     backlog: "#656d76",
     progress: "#9a6700",
+    review: "#8250df",
     done: "#1a7f37",
   },
   dracula: {
@@ -89,6 +94,7 @@ export const THEMES: Record<ThemeName, ThemePalette> = {
     error: "#ff5555",
     backlog: "#6272a4",
     progress: "#f1fa8c",
+    review: "#bd93f9",
     done: "#50fa7b",
   },
 }

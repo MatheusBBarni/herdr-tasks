@@ -1,7 +1,19 @@
 import type { ThemeName } from "./themes.ts"
 
-export const LANES = ["backlog", "in_progress", "done"] as const
+export const LANES = ["backlog", "in_progress", "review", "done"] as const
 export type Lane = (typeof LANES)[number]
+
+export function isLaunchLane(lane: Lane): lane is "in_progress" | "review" {
+  return lane === "in_progress" || lane === "review"
+}
+
+export type ReviewConfig = {
+  agent: string
+  skill: string
+  prompt: string
+}
+
+export const EMPTY_REVIEW: ReviewConfig = { agent: "", skill: "", prompt: "" }
 
 export const HERDR_BEHAVIORS = ["tab", "workspace", "pane"] as const
 export type HerdrBehavior = (typeof HERDR_BEHAVIORS)[number]
@@ -33,6 +45,7 @@ export type Config = {
   projects: Record<string, ProjectEntry>
   task_types: string[]
   default_type: string
+  review: ReviewConfig
 }
 
 export type HerdrMeta = {

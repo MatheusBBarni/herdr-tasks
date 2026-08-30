@@ -6,7 +6,7 @@ import { loadConfig, saveConfig, taskFilePath, writeInitConfig } from "./config.
 import { fail } from "./errors.ts"
 import { ensureDir, isDirectory, pathExists, readText, writeFileAtomic } from "./fs.ts"
 import { formatTaskId } from "./ids.ts"
-import { packagedSkillPath, pathsFor, type BoardPaths } from "./root.ts"
+import { packagedReviewPromptPath, packagedSkillPath, pathsFor, type BoardPaths } from "./root.ts"
 import {
   assertBlockersValid,
   formatBlockedError,
@@ -343,11 +343,17 @@ export async function initBoard(
   const paths = await writeInitConfig(cwd, { prefix, agent, project })
   await ensureDir(paths.tasksDir)
   await ensureDir(paths.skillsDir)
+  await ensureDir(paths.promptsDir)
   const skillSrc = packagedSkillPath()
   if (!(await pathExists(skillSrc))) {
     fail(`Packaged skill missing at ${skillSrc}`)
   }
   await cp(skillSrc, paths.skillPath)
+  const promptSrc = packagedReviewPromptPath()
+  if (!(await pathExists(promptSrc))) {
+    fail(`Packaged review prompt missing at ${promptSrc}`)
+  }
+  await cp(promptSrc, paths.reviewPromptPath)
   return paths
 }
 

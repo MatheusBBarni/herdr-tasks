@@ -1,11 +1,11 @@
 import { homedir } from "node:os"
 import { dirname, join, resolve } from "node:path"
 import { colorEnabled, paint } from "./color.ts"
-import { parseConfig } from "./config.ts"
+import { parseConfig, resolveReviewPromptPath, resolveReviewSkillPath } from "./config.ts"
 import { isDirectory, pathExists, readText } from "./fs.ts"
 import { defaultRunner, isServerRunning, type HerdrRunner } from "./herdr.ts"
 import { findProject, listedProjects } from "./projects.ts"
-import { findBoardRoot, packagedSkillPath, pathsFor } from "./root.ts"
+import { findBoardRoot, packagedReviewPromptPath, packagedSkillPath, pathsFor } from "./root.ts"
 
 export type DoctorStatus = "ok" | "warn" | "fail"
 
@@ -232,6 +232,44 @@ export async function runDoctor(env: DoctorEnv = {}): Promise<DoctorReport> {
           hint: "Re-run htasks init or copy skills/htasks/SKILL.md",
         })
       }
+      if (config.review.agent) {
+        if (config.agents[config.review.agent]) {
+          add({ id: "review_agent", status: "ok", message: `review agent ${config.review.agent}` })
+        } else {
+          add({
+            id: "review_agent",
+            status: "fail",
+            message: `review.agent '${config.review.agent}' is not in the agent map`,
+            hint: "htasks agents add <name> --command \"...\"",
+          })
+        }
+      }
+      if (config.review.skill) {
+        try {
+          const skillPath = await resolveReviewSkillPath(boardRoot, config.review.skill)
+          add({ id: "review_skill", status: "ok", message: `review skill ${skillPath}` })
+        } catch (err) {
+          add({
+            id: "review_skill",
+            status: "fail",
+            message: err instanceof Error ? err.message : String(err),
+            hint: "Set [review] skill to a skill name or SKILL.md path, or leave it empty.",
+          })
+        }
+      }
+      if (config.review.prompt) {
+        try {
+          const promptPath = await resolveReviewPromptPath(boardRoot, config.review.prompt)
+          add({ id: "review_prompt", status: "ok", message: `review prompt ${promptPath}` })
+        } catch (err) {
+          add({
+            id: "review_prompt",
+            status: "fail",
+            message: err instanceof Error ? err.message : String(err),
+            hint: "Set [review] prompt to an existing file, or leave it empty.",
+          })
+        }
+      }
       if (await isDirectory(paths.tasksDir)) {
         add({ id: "tasks", status: "ok", message: `tasks dir ${paths.tasksDir}` })
       } else {
@@ -325,6 +363,20 @@ export async function runDoctor(env: DoctorEnv = {}): Promise<DoctorReport> {
       id: "packaged_skill",
       status: "fail",
       message: "packaged skills/htasks/SKILL.md missing",
+    })
+  }
+  const packagedPrompt = packagedReviewPromptPath()
+  if (await pathExists(packagedPrompt)) {
+    add({
+      id: "packaged_review_prompt",
+      status: "ok",
+      message: `packaged review prompt ${packagedPrompt}`,
+    })
+  } else {
+    add({
+      id: "packaged_review_prompt",
+      status: "fail",
+      message: "packaged skills/htasks/review-prompt.md missing",
     })
   }
 
