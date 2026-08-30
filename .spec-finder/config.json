@@ -1,0 +1,14 @@
+{
+  "version": 3,
+  "provider": "grok",
+  "model": "auto",
+  "reasoning": "auto",
+  "speed": "normal",
+  "permissions": "prompt",
+  "auto_commit": false,
+  "setup": {
+    "status": "configured",
+    "scope": "local",
+    "destination": ".agents/skills"
+  }
+}
