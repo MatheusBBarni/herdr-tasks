@@ -410,6 +410,8 @@ Source of truth is markdown + YAML frontmatter, not the cache.
 
 ## Develop
 
+Product gaps from a full pass: [docs/improvements.md](docs/improvements.md) (board tickets dev-37–dev-65).
+
 ```bash
 bun test
 bun run typecheck

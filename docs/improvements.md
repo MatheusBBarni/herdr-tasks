@@ -1,8 +1,6 @@
 # Things to improve or new features
 
-Board tickets: **dev-37–dev-58** (backlog). Source: current `src/`, README, packaged skill, this board’s `config.toml`.
-
-Not ticketed: WIP limits, tags/due dates/subtasks, command palette, undo, Windows plugin, MCP, auto-move on Herdr idle (rejected in `docs/spike-herdr-agent-status.md`).
+Board tickets: **dev-37–dev-65** (backlog). Source: current `src/`, README, packaged skill, this board’s `config.toml`.
 
 ## Bugs
 
@@ -23,6 +21,7 @@ Not ticketed: WIP limits, tags/due dates/subtasks, command palette, undo, Window
 | dev-44 | AGENTS.md points at missing `htasks-prompt.md`; packaged skill vs board skill vs README drift; `.index.json` documented but unused |
 | dev-45 | `@opentui/*` and `typescript` are `latest`; no CI, LICENSE, CHANGELOG |
 | dev-58 | `init` copies the skill once; existing boards keep a stale copy |
+| dev-63 | plugin `platforms` is linux/macos only; install scripts are bash |
 
 ## Board and Herdr lifecycle
 
@@ -38,6 +37,11 @@ Not ticketed: WIP limits, tags/due dates/subtasks, command palette, undo, Window
 | dev-54 | no yank-id / jump |
 | dev-55 | blocked agents are silent except the card word |
 | dev-56 | optional `close_on_leave` (default still leave panes alive) |
+| dev-59 | no per-lane WIP cap |
+| dev-60 | no tags, due dates, or subtasks |
+| dev-61 | no command palette |
+| dev-62 | no undo for a mis-keyed move |
+| dev-65 | no auto-move on Herdr idle/done (off by default; see `docs/spike-herdr-plugin.md` §3.9) |
 
 ## CLI
 
@@ -45,3 +49,4 @@ Not ticketed: WIP limits, tags/due dates/subtasks, command palette, undo, Window
 |---|---|
 | dev-51 | lane create exists; no edit/remove; no `projects add` |
 | dev-57 | no `htasks duplicate` |
+| dev-64 | no MCP (or other structured tool) surface; agents must shell out |
