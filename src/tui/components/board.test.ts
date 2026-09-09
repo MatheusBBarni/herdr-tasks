@@ -1,13 +1,35 @@
 import { expect, test } from "bun:test"
-import { splitColumnWidths } from "./board.tsx"
+import { boardRowHeight, chunkLanes, lanesPerRow, MIN_LANE_WIDTH, splitColumnWidths } from "./board.tsx"
 import { columnHeading } from "./column.tsx"
 
-test("splitColumnWidths fills the row and spreads the remainder left", () => {
-  expect(splitColumnWidths(80, 3)).toEqual([27, 27, 26])
+test("splitColumnWidths uses a fixed lane width except for a single pane", () => {
+  expect(splitColumnWidths(80, 3)).toEqual([20, 20, 20])
   expect(splitColumnWidths(80, 4)).toEqual([20, 20, 20, 20])
   expect(splitColumnWidths(60, 1)).toEqual([60])
-  expect(splitColumnWidths(79, 3)).toEqual([27, 26, 26])
+  expect(splitColumnWidths(79, 3)).toEqual([20, 20, 20])
+  expect(splitColumnWidths(80, 6)).toEqual([20, 20, 20, 20, 20, 20])
+  expect(splitColumnWidths(80, 6).every((width) => width === MIN_LANE_WIDTH)).toBe(true)
 })
+
+test("lanesPerRow packs fixed-width columns", () => {
+  expect(lanesPerRow(80)).toBe(4)
+  expect(lanesPerRow(60)).toBe(3)
+  expect(lanesPerRow(19)).toBe(1)
+})
+
+test("chunkLanes wraps extra lanes onto the next row", () => {
+  expect(chunkLanes(["a", "b", "c", "d", "e", "f"], 4)).toEqual([
+    ["a", "b", "c", "d"],
+    ["e", "f"],
+  ])
+})
+
+
+test("boardRowHeight subtracts top bar, hint bar, and toast", () => {
+  expect(boardRowHeight(24, false)).toBe(22)
+  expect(boardRowHeight(24, true)).toBe(21)
+})
+
 
 test("columnHeading is uppercase name · count", () => {
   expect(columnHeading("backlog", 5)).toBe("BACKLOG · 5")

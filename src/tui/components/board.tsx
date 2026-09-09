@@ -1,13 +1,23 @@
+import { useEffect, useRef } from "react"
+import type { ScrollBoxRenderable } from "@opentui/core"
+import { useTerminalDimensions } from "@opentui/react"
 import type { LiveAgentStatus } from "../../lib/herdr.ts"
 import { isLaunchLane } from "../../lib/lanes.ts"
 import { tasksInLane } from "../../lib/order.ts"
 import { LANES, type Lane, type LaneDef, type Task } from "../../lib/types.ts"
 import { filterTasks } from "../filter.ts"
 import { HINTS_NARROW, HINTS_WIDE, fitHints, hintsForTask } from "../hints.ts"
+import { revealLaneInBoard } from "../scroll.ts"
 import { Column } from "./column.tsx"
 import { HintBar } from "./hint-bar.tsx"
 import { ToastBar, type ToastInfo } from "./toast.tsx"
 import { TopBar, liveRunningCount } from "./top-bar.tsx"
+
+/** Matches 4 lanes at 80 cols. Extra lanes wrap to the next row. */
+export const MIN_LANE_WIDTH = 20
+const TOP_BAR_HEIGHT = 1
+const HINT_BAR_HEIGHT = 1
+const TOAST_HEIGHT = 1
 
 type BoardProps = {
   tasks: Task[]
@@ -33,22 +43,40 @@ type BoardProps = {
   laneDefs?: Record<string, LaneDef>
 }
 
-export function splitColumnWidths(total: number, count: number): number[] {
+export function splitColumnWidths(total: number, count: number, min = MIN_LANE_WIDTH): number[] {
   const n = Math.max(1, count)
-  const base = Math.max(1, Math.floor(total / n))
-  const widths = Array.from({ length: n }, () => base)
-  let rest = Math.max(0, total - base * n)
-  for (let i = 0; rest > 0 && i < widths.length; i++) {
-    widths[i]! += 1
-    rest--
-  }
-  return widths
+  const minWidth = Math.max(1, min)
+  if (n === 1) return [Math.max(1, total)]
+  return Array.from({ length: n }, () => minWidth)
+}
+
+export function lanesPerRow(total: number, min = MIN_LANE_WIDTH): number {
+  return Math.max(1, Math.floor(Math.max(1, total) / Math.max(1, min)))
+}
+
+export function chunkLanes<T>(items: readonly T[], size: number): T[][] {
+  const n = Math.max(1, size)
+  const rows: T[][] = []
+  for (let i = 0; i < items.length; i += n) rows.push(items.slice(i, i + n))
+  return rows
+}
+
+export function boardRowHeight(termHeight: number, hasToast: boolean): number {
+  return Math.max(1, termHeight - TOP_BAR_HEIGHT - HINT_BAR_HEIGHT - (hasToast ? TOAST_HEIGHT : 0))
 }
 
 export function Board(props: BoardProps) {
+  const scrollRef = useRef<ScrollBoxRenderable>(null)
+  const { height } = useTerminalDimensions()
   const laneOrder = props.lanes?.length ? props.lanes : LANES
   const lanes = props.singlePane ? [props.focusedLane] : [...laneOrder]
   const colWidths = splitColumnWidths(props.width, lanes.length)
+  const perRow = lanesPerRow(props.width)
+  const rows = chunkLanes(lanes, perRow)
+  const overflow = rows.length > 1
+  const rowHeight = boardRowHeight(height, props.toast != null)
+  const focusedIndex = lanes.indexOf(props.focusedLane)
+  const rowIndex = focusedIndex < 0 ? 0 : Math.floor(focusedIndex / perRow)
   const byLane = (lane: Lane) => {
     const all = tasksInLane(props.tasks, lane)
     return filterTasks(all, props.filterQueries?.[lane] ?? "")
@@ -69,6 +97,51 @@ export function Board(props: BoardProps) {
     inProgressCount: liveCount,
   })
 
+  useEffect(() => {
+    if (!overflow || focusedIndex < 0) return
+    const lane = props.focusedLane
+    const index = rowIndex
+    const size = rowHeight
+    let cancelled = false
+    const timers: ReturnType<typeof setTimeout>[] = []
+    const tryReveal = () => {
+      if (cancelled) return
+      revealLaneInBoard(scrollRef.current, lane, index, size)
+    }
+    tryReveal()
+    timers.push(setTimeout(tryReveal, 0))
+    timers.push(setTimeout(tryReveal, 32))
+    return () => {
+      cancelled = true
+      for (const timer of timers) clearTimeout(timer)
+    }
+  }, [overflow, focusedIndex, rowIndex, rowHeight, props.focusedLane, props.width])
+
+  const column = (lane: Lane, i: number) => (
+    <Column
+      key={lane}
+      lane={lane}
+      name={props.laneDefs?.[lane]?.name}
+      tasks={byLane(lane)}
+      totalCount={tasksInLane(props.tasks, lane).length}
+      width={colWidths[i] ?? MIN_LANE_WIDTH}
+      focused={props.focusedLane === lane}
+      focusedId={props.focusedId}
+      selectedId={props.selectedId}
+      launchingIds={props.launchingIds}
+      agentStatuses={props.agentStatuses}
+      defaultProject={props.defaultProject}
+      filterQuery={props.filterQueries?.[lane] ?? ""}
+      filterEditing={props.filterLane === lane}
+      onFilterChange={(query) => props.onFilterChange?.(lane, query)}
+      onFilterSubmit={() => props.onFilterSubmit?.()}
+      onFilterFocus={() => props.onFilterFocus?.(lane)}
+      onFocusTask={props.onFocusTask}
+      onDrop={props.onDrop}
+      laneDefs={props.laneDefs}
+    />
+  )
+
   return (
     <box flexDirection="column" width="100%" height="100%">
       <TopBar
@@ -77,32 +150,33 @@ export function Board(props: BoardProps) {
         boardName={props.boardName}
         prefix={props.prefix}
       />
-      <box flexDirection="row" flexGrow={1} flexShrink={1} width="100%">
-        {lanes.map((lane, i) => (
-          <Column
-            key={lane}
-            lane={lane}
-            name={props.laneDefs?.[lane]?.name}
-            tasks={byLane(lane)}
-            totalCount={tasksInLane(props.tasks, lane).length}
-            width={colWidths[i] ?? 12}
-            focused={props.focusedLane === lane}
-            focusedId={props.focusedId}
-            selectedId={props.selectedId}
-            launchingIds={props.launchingIds}
-            agentStatuses={props.agentStatuses}
-            defaultProject={props.defaultProject}
-            filterQuery={props.filterQueries?.[lane] ?? ""}
-            filterEditing={props.filterLane === lane}
-            onFilterChange={(query) => props.onFilterChange?.(lane, query)}
-            onFilterSubmit={() => props.onFilterSubmit?.()}
-            onFilterFocus={() => props.onFilterFocus?.(lane)}
-            onFocusTask={props.onFocusTask}
-            onDrop={props.onDrop}
-            laneDefs={props.laneDefs}
-          />
-        ))}
-      </box>
+      {overflow ? (
+        <scrollbox
+          ref={scrollRef}
+          flexGrow={1}
+          flexShrink={1}
+          width="100%"
+          height="100%"
+          scrollY
+          scrollX={false}
+        >
+          {rows.map((row) => (
+            <box
+              key={row[0]}
+              flexDirection="row"
+              width="100%"
+              height={rowHeight}
+              flexShrink={0}
+            >
+              {row.map((lane) => column(lane, lanes.indexOf(lane)))}
+            </box>
+          ))}
+        </scrollbox>
+      ) : (
+        <box flexDirection="row" flexGrow={1} flexShrink={1} width="100%">
+          {lanes.map((lane, i) => column(lane, i))}
+        </box>
+      )}
       {props.toast ? <ToastBar toast={props.toast} /> : null}
       <HintBar items={hints} />
     </box>

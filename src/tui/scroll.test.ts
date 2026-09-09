@@ -1,9 +1,14 @@
 import { expect, test } from "bun:test"
-import { CARD_GAP, CARD_HEIGHT, cardRenderableId, scrollOffsetToReveal } from "./scroll.ts"
+import { CARD_GAP, CARD_HEIGHT, cardRenderableId, laneRenderableId, scrollOffsetToReveal } from "./scroll.ts"
 
 test("cardRenderableId namespaces the task id", () => {
   expect(cardRenderableId("dev-19")).toBe("card:dev-19")
 })
+
+test("laneRenderableId namespaces the lane id", () => {
+  expect(laneRenderableId("in_progress")).toBe("lane:in_progress")
+})
+
 
 test("scrollOffsetToReveal keeps an on-screen item put", () => {
   expect(
@@ -41,6 +46,19 @@ test("scrollOffsetToReveal scrolls up to the item top", () => {
     }),
   ).toBe(0)
 })
+
+test("scrollOffsetToReveal scrolls a wrapped lane row into view", () => {
+  expect(
+    scrollOffsetToReveal({
+      index: 1,
+      itemHeight: 22,
+      gap: 0,
+      viewportHeight: 22,
+      currentOffset: 0,
+    }),
+  ).toBe(22)
+})
+
 
 test("scrollOffsetToReveal ignores a missing item and an empty viewport", () => {
   expect(

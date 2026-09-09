@@ -5,7 +5,7 @@ import type { LiveAgentStatus } from "../../lib/herdr.ts"
 import { defaultLaneName, isLaunchLane } from "../../lib/lanes.ts"
 import { truncateCells } from "../../lib/text.ts"
 import type { Lane, LaneDef, Task } from "../../lib/types.ts"
-import { CARD_GAP, revealTaskInLane } from "../scroll.ts"
+import { CARD_GAP, laneRenderableId, revealTaskInLane } from "../scroll.ts"
 import { tuiColor, useTheme } from "../theme.ts"
 import { Card } from "./card.tsx"
 import { fieldInputColors } from "./form-kit.tsx"
@@ -98,6 +98,7 @@ export function Column(props: ColumnProps) {
 
   return (
     <box
+      id={laneRenderableId(props.lane)}
       flexDirection="column"
       flexGrow={0}
       flexShrink={0}
