@@ -14,14 +14,16 @@ export function compareTaskOrder(a: Task, b: Task): number {
   return a.id.localeCompare(b.id)
 }
 
-export function compareTasks(a: Task, b: Task): number {
-  const lane = LANES.indexOf(a.status) - LANES.indexOf(b.status)
+export function compareTasks(a: Task, b: Task, laneOrder: readonly string[] = LANES): number {
+  const ia = laneOrder.indexOf(a.status)
+  const ib = laneOrder.indexOf(b.status)
+  const lane = (ia < 0 ? laneOrder.length : ia) - (ib < 0 ? laneOrder.length : ib)
   if (lane !== 0) return lane
   return compareTaskOrder(a, b)
 }
 
-export function sortTasks(tasks: readonly Task[]): Task[] {
-  return [...tasks].sort(compareTasks)
+export function sortTasks(tasks: readonly Task[], laneOrder: readonly string[] = LANES): Task[] {
+  return [...tasks].sort((a, b) => compareTasks(a, b, laneOrder))
 }
 
 export function tasksInLane(tasks: readonly Task[], lane: Lane): Task[] {
@@ -42,6 +44,7 @@ export function applyReorder(
   id: string,
   dir: -1 | 1,
   now = new Date().toISOString(),
+  laneOrder: readonly string[] = LANES,
 ): { tasks: Task[]; changed: Task[] } {
   const unchanged = { tasks: [...tasks], changed: [] as Task[] }
   const current = tasks.find((task) => task.id === id)
@@ -65,7 +68,10 @@ export function applyReorder(
   })
   const byId = new Map(rewritten.map((task) => [task.id, task]))
   return {
-    tasks: sortTasks(tasks.map((task) => byId.get(task.id) ?? task)),
+    tasks: sortTasks(
+      tasks.map((task) => byId.get(task.id) ?? task),
+      laneOrder,
+    ),
     changed,
   }
 }

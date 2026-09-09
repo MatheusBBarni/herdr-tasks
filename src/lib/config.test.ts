@@ -5,6 +5,7 @@ import { join } from "node:path"
 import { mkdir } from "node:fs/promises"
 import {
   applySettings,
+  createLane,
   loadConfig,
   loadReviewPromptOrDefault,
   loadReviewSkillText,
@@ -12,6 +13,7 @@ import {
   resolveReviewSkillPath,
   setConfigValue,
 } from "./config.ts"
+import { initBoard } from "./store.ts"
 import { ensureDir } from "./fs.ts"
 import { REVIEW_PROMPT_REL, pathsFor } from "./root.ts"
 import { defaultConfigToml, stringifyConfig } from "./toml.ts"
@@ -45,6 +47,7 @@ function sample(partial: Partial<Config> = {}): Config {
     default_project: "",
     theme: "nord",
     lanes: ["backlog", "in_progress", "review", "done"],
+    lane_defs: {},
     next_id: 1,
     herdr_bin: "herdr",
     herdr_behavior: "workspace",
@@ -324,18 +327,90 @@ test("loadReviewPromptOrDefault errors when a configured prompt file is missing"
   await expect(loadReviewPromptOrDefault(paths, "missing.md")).rejects.toThrow(/Review prompt not found/)
 })
 
-test("unknown lane in config is an error", () => {
+test("invalid lane identifier in config is an error", () => {
   expect(() =>
     parseConfig(`
 prefix = "dev"
 default_agent = "claude"
-lanes = ["backlog", "later"]
+lanes = ["backlog", "Later"]
 next_id = 1
 
 [agents.claude]
 command = "ccc"
 `),
-  ).toThrow(/Unknown lane/)
+  ).toThrow(/Invalid lane identifier/)
+})
+
+test("custom lane ids are kept in order", () => {
+  const config = parseConfig(`
+prefix = "dev"
+default_agent = "claude"
+lanes = ["backlog", "in_progress", "review", "qa", "done"]
+next_id = 1
+
+[agents.claude]
+command = "ccc"
+
+[lane.qa]
+name = "QA"
+prompt = "prompts/qa.md"
+next_step = "done"
+`)
+  expect(config.lanes).toEqual(["backlog", "in_progress", "review", "qa", "done"])
+  expect(config.lane_defs.qa).toEqual({
+    name: "QA",
+    prompt: "prompts/qa.md",
+    next_step: "done",
+  })
+})
+
+test("stringifyConfig writes [lane] tables", () => {
+  const text = stringifyConfig(
+    sample({
+      lanes: ["backlog", "in_progress", "review", "qa", "done"],
+      lane_defs: { qa: { name: "QA", prompt: "Check tests.", next_step: "done" } },
+    }),
+  )
+  expect(text).toContain("[lane.qa]")
+  expect(text).toContain('name = "QA"')
+  expect(text).toContain('prompt = "Check tests."')
+  expect(text).toContain('next_step = "done"')
+  expect(parseConfig(text).lane_defs.qa?.name).toBe("QA")
+})
+
+test("createLane inserts before done and writes the table", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "htasks-lane-"))
+  dirs.push(dir)
+  const paths = await initBoard(dir, { prefix: "dev", agent: "claude", project: dir })
+  const lane = await createLane(paths, {
+    name: "QA",
+    prompt: "Check the tests.",
+    next_step: "done",
+  })
+  expect(lane.id).toBe("qa")
+  const config = await loadConfig(paths)
+  expect(config.lanes).toEqual(["backlog", "in_progress", "review", "qa", "done"])
+  expect(config.lane_defs.qa).toEqual({
+    name: "QA",
+    prompt: "Check the tests.",
+    next_step: "done",
+  })
+})
+
+test("lane table without lanes list entry is an error", () => {
+  expect(() =>
+    parseConfig(`
+prefix = "dev"
+default_agent = "claude"
+next_id = 1
+
+[agents.claude]
+command = "ccc"
+
+[lane.qa]
+name = "QA"
+`),
+  ).toThrow(/not listed in lanes/)
 })
 
 test("stringifyConfig writes [review] section", () => {

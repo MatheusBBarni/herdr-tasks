@@ -1,6 +1,7 @@
 import type { LiveAgentStatus } from "../../lib/herdr.ts"
+import { isLaunchLane } from "../../lib/lanes.ts"
 import { tasksInLane } from "../../lib/order.ts"
-import { LANES, isLaunchLane, type Lane, type Task } from "../../lib/types.ts"
+import { LANES, type Lane, type LaneDef, type Task } from "../../lib/types.ts"
 import { filterTasks } from "../filter.ts"
 import { HINTS_NARROW, HINTS_WIDE, fitHints, hintsForTask } from "../hints.ts"
 import { Column } from "./column.tsx"
@@ -28,6 +29,8 @@ type BoardProps = {
   onFocusTask: (id: string) => void
   onDrop: (lane: Lane) => void
   toast: ToastInfo | null
+  lanes?: readonly string[]
+  laneDefs?: Record<string, LaneDef>
 }
 
 export function splitColumnWidths(total: number, count: number): number[] {
@@ -43,7 +46,8 @@ export function splitColumnWidths(total: number, count: number): number[] {
 }
 
 export function Board(props: BoardProps) {
-  const lanes = props.singlePane ? [props.focusedLane] : [...LANES]
+  const laneOrder = props.lanes?.length ? props.lanes : LANES
+  const lanes = props.singlePane ? [props.focusedLane] : [...laneOrder]
   const colWidths = splitColumnWidths(props.width, lanes.length)
   const byLane = (lane: Lane) => {
     const all = tasksInLane(props.tasks, lane)
@@ -58,7 +62,7 @@ export function Board(props: BoardProps) {
     ),
     props.width,
   )
-  const liveCount = props.tasks.filter((task) => isLaunchLane(task.status)).length
+  const liveCount = props.tasks.filter((task) => isLaunchLane(task.status, props.laneDefs)).length
   const running = liveRunningCount({
     launchingIds: props.launchingIds,
     agentStatuses: props.agentStatuses,
@@ -78,6 +82,7 @@ export function Board(props: BoardProps) {
           <Column
             key={lane}
             lane={lane}
+            name={props.laneDefs?.[lane]?.name}
             tasks={byLane(lane)}
             totalCount={tasksInLane(props.tasks, lane).length}
             width={colWidths[i] ?? 12}
@@ -94,6 +99,7 @@ export function Board(props: BoardProps) {
             onFilterFocus={() => props.onFilterFocus?.(lane)}
             onFocusTask={props.onFocusTask}
             onDrop={props.onDrop}
+            laneDefs={props.laneDefs}
           />
         ))}
       </box>

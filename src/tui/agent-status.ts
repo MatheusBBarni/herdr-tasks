@@ -4,16 +4,17 @@ import {
   listAgentStatuses,
   type LiveAgentStatus,
 } from "../lib/herdr.ts"
-import { isLaunchLane, type Task } from "../lib/types.ts"
+import { isLaunchLane } from "../lib/lanes.ts"
+import type { LaneDef, Task } from "../lib/types.ts"
 
 const POLL_MS = 1500
 const COALESCE_MS = 80
 
-export function inProgressPaneIds(tasks: readonly Task[]): string[] {
+export function inProgressPaneIds(tasks: readonly Task[], defs?: Record<string, LaneDef>): string[] {
   const ids: string[] = []
   const seen = new Set<string>()
   for (const task of tasks) {
-    if (!isLaunchLane(task.status)) continue
+    if (!isLaunchLane(task.status, defs)) continue
     const id = task.herdr.pane_id?.trim()
     if (!id || seen.has(id)) continue
     seen.add(id)
@@ -37,8 +38,9 @@ export function useAgentStatuses(
   enabled: boolean,
   bin: string,
   tasks: readonly Task[],
+  defs?: Record<string, LaneDef>,
 ): ReadonlyMap<string, LiveAgentStatus> {
-  const paneKey = useMemo(() => inProgressPaneIds(tasks).join("\0"), [tasks])
+  const paneKey = useMemo(() => inProgressPaneIds(tasks, defs).join("\0"), [tasks, defs])
   const [statuses, setStatuses] = useState<Map<string, LiveAgentStatus>>(() => new Map())
 
   useEffect(() => {

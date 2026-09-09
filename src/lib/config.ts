@@ -11,14 +11,22 @@ import { parseDefaultType, parseTaskTypes } from "./task-types.ts"
 import {
   CONFIG_KEYS,
   HERDR_BEHAVIORS,
-  LANES,
   isHerdrBehavior,
   type Config,
   type ConfigKey,
   type HerdrBehavior,
-  type Lane,
+  type LaneDef,
   type ReviewConfig,
 } from "./types.ts"
+import {
+  insertLaneId,
+  looksLikePromptPath,
+  parseLaneDefs,
+  parseLaneIds,
+  requireLaneId,
+  resolveLanePromptPath,
+  slugLaneId,
+} from "./lanes.ts"
 
 type RawConfig = {
   prefix?: unknown
@@ -26,6 +34,7 @@ type RawConfig = {
   default_project?: unknown
   theme?: unknown
   lanes?: unknown
+  lane?: unknown
   next_id?: unknown
   herdr_bin?: unknown
   herdr_behavior?: unknown
@@ -75,17 +84,6 @@ function parseHerdrBehavior(raw: unknown): Config["herdr_behavior"] {
     fail(`Invalid herdr.behavior '${String(raw)}'. Use ${HERDR_BEHAVIORS.join(", ")}.`)
   }
   return raw
-}
-
-function parseLanes(raw: unknown): Lane[] {
-  if (Array.isArray(raw)) {
-    for (const item of raw) {
-      if (typeof item === "string" && item && !(LANES as readonly string[]).includes(item)) {
-        fail(`Unknown lane '${item}'. Use ${LANES.join(", ")}.`)
-      }
-    }
-  }
-  return [...LANES]
 }
 
 function reviewTable(raw: unknown): Record<string, unknown> {
@@ -221,12 +219,14 @@ export function parseConfig(text: string): Config {
   const default_agent = asString(raw.default_agent, Object.keys(agents)[0] ?? "claude")
   const nested = herdrTable(raw.herdr)
   const task_types = parseTaskTypes(raw.task_types)
+  const lanes = parseLaneIds(raw.lanes)
   return {
     prefix,
     default_agent,
     default_project: asString(raw.default_project, ""),
     theme: parseThemeName(raw.theme),
-    lanes: parseLanes(raw.lanes),
+    lanes,
+    lane_defs: parseLaneDefs(raw.lane, lanes),
     next_id: asInt(raw.next_id, 1),
     herdr_bin: asString(nested.bin ?? raw.herdr_bin, "herdr").trim() || "herdr",
     herdr_behavior: parseHerdrBehavior(nested.behavior ?? raw.herdr_behavior),
@@ -256,6 +256,35 @@ export async function loadConfig(paths: BoardPaths): Promise<Config> {
 
 export async function saveConfig(paths: BoardPaths, config: Config): Promise<void> {
   await writeFileAtomic(paths.configPath, stringifyConfig(config))
+}
+
+export type LaneCreateInput = {
+  name: string
+  id?: string
+  prompt?: string
+  next_step?: string
+}
+
+export async function createLane(paths: BoardPaths, input: LaneCreateInput): Promise<LaneDef & { id: string }> {
+  const config = await loadConfig(paths)
+  const name = input.name.trim()
+  if (!name) fail("Lane name is required.")
+  const id = input.id?.trim() ? requireLaneId(input.id) : slugLaneId(name)
+  if (config.lanes.includes(id)) fail(`Lane '${id}' already exists.`)
+  const next_step = (input.next_step ?? "done").trim()
+  if (next_step === id) fail(`Lane '${id}' next_step cannot be itself.`)
+  if (next_step && !config.lanes.includes(next_step)) {
+    fail(`Unknown next_step '${next_step}'. Use ${config.lanes.join(", ")}.`)
+  }
+  const prompt = input.prompt ?? ""
+  if (looksLikePromptPath(prompt)) {
+    await resolveLanePromptPath(paths.boardRoot, paths.promptsDir, prompt)
+  }
+  config.lanes = insertLaneId(config.lanes, id, next_step || "done")
+  const def: LaneDef = { name, prompt, next_step }
+  config.lane_defs[id] = def
+  await saveConfig(paths, config)
+  return { id, ...def }
 }
 
 export function getConfigValue(config: Config, key: string): string {

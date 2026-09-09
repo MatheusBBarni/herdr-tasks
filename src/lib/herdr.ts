@@ -1,6 +1,7 @@
 import { resolveKind } from "./agents.ts"
 import { commandWithEffort } from "./effort.ts"
-import { isLaunchLane, type AgentEntry, type HerdrBehavior, type Task } from "./types.ts"
+import { isLaunchLane } from "./lanes.ts"
+import type { AgentEntry, HerdrBehavior, LaneDef, Task } from "./types.ts"
 import { linkBoardIntoWorktree, worktreeBranch } from "./worktree.ts"
 
 export type HerdrRunResult = {
@@ -445,14 +446,15 @@ export async function focusTaskLayout(opts: {
   task: Task
   behavior?: HerdrBehavior
   runner?: HerdrRunner
+  laneDefs?: Record<string, LaneDef>
 }): Promise<{ noun: string; id: string }> {
   const runner = opts.runner ?? defaultRunner
   const behavior = opts.behavior ?? "workspace"
   const { bin, task } = opts
   const noun = layoutNoun(behavior)
 
-  if (!isLaunchLane(task.status)) {
-    throw new HerdrError(`${task.id} is not in progress or review.`)
+  if (!isLaunchLane(task.status, opts.laneDefs)) {
+    throw new HerdrError(`${task.id} is not in a launch lane.`)
   }
 
   const missing = `${task.id} has no Herdr ${noun} yet.`
@@ -608,13 +610,19 @@ export async function ensureTaskWorktree(opts: {
   return { ...created, created: true }
 }
 
-export function firstPrompt(task: Task, skillPath: string, behavior: HerdrBehavior = "workspace"): string {
+export function firstPrompt(
+  task: Task,
+  skillPath: string,
+  behavior: HerdrBehavior = "workspace",
+  nextStep = "review",
+): string {
   const place = layoutNoun(behavior)
+  const next = nextStep.trim() || "review"
   return [
     `You are working task ${task.id} in repo ${task.project}.`,
     `Read ${task.filePath}.`,
     `Follow ${skillPath}.`,
-    `When complete: \`htasks move ${task.id} review\`.`,
+    `When complete: \`htasks move ${task.id} ${next}\`.`,
     "`herdr` is the multiplexer already running this " + place + ". `htasks` is the task board CLI.",
   ].join("\n")
 }
@@ -690,6 +698,7 @@ export async function launchInProgress(opts: {
   agentKey: string
   skillPath: string
   prompt?: string
+  nextStep?: string
   behavior?: HerdrBehavior
   runner?: HerdrRunner
   env?: NodeJS.Dict<string | undefined>
@@ -766,7 +775,7 @@ export async function launchInProgress(opts: {
   const prompted = await promptAgentInPane({
     bin,
     paneId: created.pane_id,
-    prompt: opts.prompt ?? firstPrompt({ ...task, project: layoutTask.project }, opts.skillPath, behavior),
+    prompt: opts.prompt ?? firstPrompt({ ...task, project: layoutTask.project }, opts.skillPath, behavior, opts.nextStep),
     runner,
     detectTimeoutMs: opts.detectTimeoutMs,
     notReadyWarning: `Started ${runCommand} in ${created.pane_id}, but Herdr has not detected an agent yet. First prompt not sent.`,

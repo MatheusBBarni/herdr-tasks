@@ -2,7 +2,7 @@ import { afterEach, expect, test } from "bun:test"
 import { mkdir, mkdtemp, rm } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import { loadConfig, saveConfig, setConfigValue } from "./config.ts"
+import { createLane, loadConfig, saveConfig, setConfigValue } from "./config.ts"
 import type { HerdrRunner } from "./herdr.ts"
 import { moveTask } from "./move.ts"
 import { createTask, getTask, initBoard, writeTask } from "./store.ts"
@@ -309,6 +309,52 @@ test("worktree create failure reverts status", async () => {
 test("bad lane is an error", async () => {
   const { paths, task } = await tempBoard()
   await expect(moveTask(paths, task.id, "later")).rejects.toThrow(/Unknown lane/)
+})
+
+test("move to a custom lane sends its prompt", async () => {
+  const { paths, task } = await tempBoard()
+  await createLane(paths, { name: "QA", prompt: "Check the tests.", next_step: "done" })
+  const { runner, calls } = mockHerdr()
+  const moved = await moveTask(paths, task.id, "qa", { runner })
+  expect(moved.status).toBe("qa")
+  const prompt = calls.find((args) => args[0] === "agent" && args[1] === "prompt")
+  expect(prompt?.[3]).toContain("Check the tests.")
+  expect(prompt?.[3]).toContain(`htasks move ${task.id} done`)
+})
+
+test("move to a custom lane without a prompt only updates status", async () => {
+  const { paths, task } = await tempBoard()
+  await createLane(paths, { name: "Blocked", next_step: "in_progress" })
+  const { runner, calls } = mockHerdr()
+  const moved = await moveTask(paths, task.id, "blocked", { runner })
+  expect(moved.status).toBe("blocked")
+  expect(calls).toEqual([])
+})
+
+test("move to a custom lane loads a prompt file from prompts/", async () => {
+  const { dir, paths, task } = await tempBoard()
+  await mkdir(paths.promptsDir, { recursive: true })
+
+  await Bun.write(join(dir, ".herdr-tasks", "prompts", "qa.md"), "QA from file.\n")
+  await createLane(paths, { name: "QA", prompt: "prompts/qa.md", next_step: "done" })
+  const { runner, calls } = mockHerdr()
+  await moveTask(paths, task.id, "qa", { runner })
+  const prompt = calls.find((args) => args[0] === "agent" && args[1] === "prompt")
+  expect(prompt?.[3]).toContain("QA from file.")
+  expect(prompt?.[3]).toContain(`htasks move ${task.id} done`)
+})
+
+test("in_progress first prompt uses the lane next_step", async () => {
+  const { paths, task } = await tempBoard()
+  const config = await loadConfig(paths)
+  config.lane_defs.in_progress = { name: "In Progress", prompt: "", next_step: "qa" }
+  config.lanes = ["backlog", "in_progress", "qa", "done"]
+  config.lane_defs.qa = { name: "QA", prompt: "Check.", next_step: "done" }
+  await saveConfig(paths, config)
+  const { runner, calls } = mockHerdr()
+  await moveTask(paths, task.id, "in_progress", { runner })
+  const prompt = calls.find((args) => args[0] === "agent" && args[1] === "prompt")
+  expect(prompt?.[3]).toContain(`htasks move ${task.id} qa`)
 })
 
 test("move review launches herdr and sends the review prompt", async () => {

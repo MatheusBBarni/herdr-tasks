@@ -2,8 +2,9 @@ import { useEffect, useRef, useState } from "react"
 import type { ScrollBoxRenderable } from "@opentui/core"
 import { useTerminalDimensions } from "@opentui/react"
 import type { LiveAgentStatus } from "../../lib/herdr.ts"
+import { defaultLaneName, isLaunchLane } from "../../lib/lanes.ts"
 import { truncateCells } from "../../lib/text.ts"
-import { isLaunchLane, type Lane, type Task } from "../../lib/types.ts"
+import type { Lane, LaneDef, Task } from "../../lib/types.ts"
 import { CARD_GAP, revealTaskInLane } from "../scroll.ts"
 import { tuiColor, useTheme } from "../theme.ts"
 import { Card } from "./card.tsx"
@@ -11,6 +12,7 @@ import { fieldInputColors } from "./form-kit.tsx"
 
 type ColumnProps = {
   lane: Lane
+  name?: string
   tasks: Task[]
   totalCount?: number
   width: number
@@ -27,12 +29,13 @@ type ColumnProps = {
   onFilterFocus?: () => void
   onFocusTask: (id: string) => void
   onDrop: (lane: Lane) => void
+  laneDefs?: Record<string, LaneDef>
 }
 
-export function columnHeading(lane: Lane, shown: number, total?: number): string {
-  const name = lane === "in_progress" ? "IN PROGRESS" : lane.toUpperCase()
-  if (total != null) return `${name} · ${shown}/${total}`
-  return `${name} · ${shown}`
+export function columnHeading(lane: Lane, shown: number, name?: string, total?: number): string {
+  const label = (name?.trim() || defaultLaneName(lane)).toUpperCase()
+  if (total != null) return `${label} · ${shown}/${total}`
+  return `${label} · ${shown}`
 }
 
 export function Column(props: ColumnProps) {
@@ -52,6 +55,7 @@ export function Column(props: ColumnProps) {
     columnHeading(
       props.lane,
       props.tasks.length,
+      props.name,
       query.length > 0 ? (props.totalCount ?? props.tasks.length) : undefined,
     ),
     inner,
@@ -138,7 +142,7 @@ export function Column(props: ColumnProps) {
                 launching={props.launchingIds.has(task.id)}
                 defaultProject={props.defaultProject}
                 agentStatus={
-                  isLaunchLane(task.status) && task.herdr.pane_id
+                  isLaunchLane(task.status, props.laneDefs) && task.herdr.pane_id
                     ? props.agentStatuses.get(task.herdr.pane_id)
                     : undefined
                 }

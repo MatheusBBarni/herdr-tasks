@@ -11,7 +11,7 @@ Agents update status with `htasks`, never by editing markdown.
 
 ## Features
 
-- Terminal Kanban (`htasks board`) with backlog / in_progress / review / done
+- Terminal Kanban (`htasks board`) with configurable lanes (default backlog / in_progress / review / done)
 - Settings modal (`s`) for theme, default agent, and Herdr layout
 - One-shot CLI for list, show, create, edit, and move
 - `--json` on stdout for agents; compact tables for humans
@@ -126,6 +126,7 @@ htasks board
 htasks list [--status <lane>] [--json]
 htasks show <id> [--json]
 htasks create --title T [--description D] [--type T] [--agent A] [--effort E] [--project <path|key>] [--status backlog] [--blockers id,id] [--worktree yes|no]
+htasks create lane --name N [--id <identifier>] [--prompt <text-or-file>] [--next-step <lane>]
 htasks move <id> <lane>
 htasks edit <id> [--title T] [--description D] [--type T] [--agent A] [--effort E] [--project <path|key>] [--blockers id,id] [--worktree yes|no]
 htasks path <id>
@@ -137,7 +138,7 @@ htasks agents remove <name>
 htasks doctor [--json]
 ```
 
-Lanes: `backlog`, `in_progress`, `review`, `done`.
+Default lanes: `backlog`, `in_progress`, `review`, `done`. Add custom lanes with `htasks create lane` or in `config.toml`.
 
 Unknown id, bad lane, missing project path, unknown agent key, unknown type, unknown effort, unknown worktree, or unknown blocker exits non-zero.
 A task with unfinished blockers cannot move to `in_progress`.
@@ -211,6 +212,29 @@ Create/edit form has a type select.
 Cards show the type before the agent key.
 CLI: `htasks create --title "Crash on save" --type bug`.
 
+## Custom lanes
+
+The `lanes` array is the board column order. Identifiers are stored as task `status`.
+A `[lane.<id>]` table sets the name shown on the board, an optional prompt, and `next_step` (where the agent should `htasks move` next).
+
+```toml
+lanes = ["backlog", "in_progress", "review", "qa", "done"]
+
+[lane.qa]
+name = "QA"
+prompt = "prompts/qa.md"  # or inline text
+next_step = "done"
+```
+
+`prompt` is a file under `.herdr-tasks/prompts/` (or another path) or inline text.
+Moving a task into a prompted lane reuses a live Herdr pane when one exists, then sends that prompt (same as review).
+
+```bash
+htasks create lane --name QA --prompt prompts/qa.md --next-step done
+htasks move dev-1 qa
+```
+
+
 ## Projects
 
 Optional named projects in `.herdr-tasks/config.toml`:
@@ -248,7 +272,7 @@ Cycling the theme field in settings previews live; Esc discards, Ctrl+Enter save
 The board does not block on Herdr.
 The card shows `starting…` until the launch finishes.
 In Progress cards poll `herdr agent list` and show one live lifecycle word (`working`, `blocked`, `idle`, `done`, `unknown`, or `gone`) before the agent key and project. That status stays in board memory — it is never written to task markdown. Herdr `done` means unseen idle; it does not finish the task.
-Press `o` on an in-progress or review card to focus that layout (`workspace focus`, `tab focus`, or `agent focus` for pane).
+Press `o` on a launch-lane card (in progress, review, or a prompted custom lane) to focus that layout (`workspace focus`, `tab focus`, or `agent focus` for pane).
 Press `c` on a done card to close that layout (`workspace close`, `tab close`, or `pane close`).
 
 Leaving `in_progress` does not close that layout.
@@ -272,7 +296,7 @@ Below 40×10 it says the terminal is too small.
 | e | Edit (not done) |
 | s | Settings (theme, default agent, herdr behavior, …) |
 | enter | Preview |
-| o | Focus the Herdr pane/tab/workspace for an in-progress or review card |
+| o | Focus the Herdr pane/tab/workspace for a launch-lane card |
 | ? | Help |
 | q | Quit (`renderer.destroy()`) |
 | Ctrl+C | Copy selection, focused field, or card |

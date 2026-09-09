@@ -1,10 +1,12 @@
 import type { ThemeName } from "./themes.ts"
 
 export const LANES = ["backlog", "in_progress", "review", "done"] as const
-export type Lane = (typeof LANES)[number]
+export type Lane = string
 
-export function isLaunchLane(lane: Lane): lane is "in_progress" | "review" {
-  return lane === "in_progress" || lane === "review"
+export type LaneDef = {
+  name: string
+  prompt: string
+  next_step: string
 }
 
 export type ReviewConfig = {
@@ -38,6 +40,7 @@ export type Config = {
   default_project: string
   theme: ThemeName
   lanes: Lane[]
+  lane_defs: Record<string, LaneDef>
   next_id: number
   herdr_bin: string
   herdr_behavior: HerdrBehavior

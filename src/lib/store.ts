@@ -16,9 +16,9 @@ import { normalizeEffort } from "./effort.ts"
 import { NONE_TASK_TYPE, normalizeTaskType } from "./task-types.ts"
 import { normalizeWorktree, parseWorktreeField } from "./worktree.ts"
 import { applyReorder, nextOrder, parseOrder, sortTasks } from "./order.ts"
+import { isLaneId, requireLane } from "./lanes.ts"
 import {
   EMPTY_HERDR,
-  LANES,
   type Config,
   type Lane,
   type Task,
@@ -26,16 +26,7 @@ import {
   type TaskPatch,
 } from "./types.ts"
 
-export function isLane(value: string): value is Lane {
-  return (LANES as readonly string[]).includes(value)
-}
-
-export function requireLane(value: string): Lane {
-  if (!isLane(value)) {
-    fail(`Unknown lane '${value}'. Use ${LANES.join(", ")}.`)
-  }
-  return value
-}
+export { requireLane }
 
 function nowIso(): string {
   return new Date().toISOString()
@@ -116,7 +107,7 @@ export function parseTaskMarkdown(text: string, filePath: string): Task {
   if (!id) fail(`Task is missing id: ${filePath}`)
   if (!title) fail(`Task ${id} is missing title.`)
   if (!statusRaw) fail(`Task ${id} is missing status.`)
-  if (!isLane(statusRaw)) fail(`Task ${id} has invalid status '${statusRaw}'.`)
+  if (!isLaneId(statusRaw)) fail(`Task ${id} has invalid status '${statusRaw}'.`)
   if (!agent) fail(`Task ${id} is missing agent.`)
   if (!project) fail(`Task ${id} is missing project.`)
   return {
@@ -186,7 +177,8 @@ export async function listTasks(paths: BoardPaths): Promise<Task[]> {
     (name) => name.endsWith(".md") && !name.startsWith("."),
   )
   const tasks = await Promise.all(names.map((name) => readTaskFile(join(paths.tasksDir, name))))
-  return sortTasks(tasks)
+  const config = await loadConfig(paths)
+  return sortTasks(tasks, config.lanes)
 }
 
 export async function getTask(paths: BoardPaths, id: string): Promise<Task> {
@@ -204,7 +196,7 @@ export async function createTask(
   const title = input.title.trim()
   if (!title) fail("Title is required.")
   const status = input.status ?? "backlog"
-  requireLane(status)
+  requireLane(status, config.lanes)
   const agent = input.agent?.trim() || config.default_agent
   requireAgent(config, agent)
   const type = normalizeTaskType(config, input.type, config.default_type)

@@ -5,13 +5,14 @@ import { listedProjects } from "../lib/projects.ts"
 import { applySettings } from "../lib/config.ts"
 import { CliError } from "../lib/errors.ts"
 import { closeTaskLayout, focusTaskLayout, hasHerdrLayout, resolveHerdrBin } from "../lib/herdr.ts"
-import { completeInProgressLaunch, completeReviewLaunch, moveTask, moveTaskDetailed } from "../lib/move.ts"
+import { completeLaneLaunch, moveTask, moveTaskDetailed } from "../lib/move.ts"
 import type { BoardPaths } from "../lib/root.ts"
 import { applyReorder, tasksInLane } from "../lib/order.ts"
 import { createTask, editTask, loadBoard, saveTask, writeTask } from "../lib/store.ts"
 import { basename } from "../lib/text.ts"
 import { DEFAULT_THEME, THEMES, type ThemeName } from "../lib/themes.ts"
-import { EMPTY_HERDR, LANES, isLaunchLane, type Config, type Lane, type Task } from "../lib/types.ts"
+import { EMPTY_HERDR, LANES, type Config, type Lane, type Task } from "../lib/types.ts"
+import { isLaunchLane } from "../lib/lanes.ts"
 import { watchTasks } from "../lib/watch.ts"
 import { useAgentStatuses } from "./agent-status.ts"
 import { fallbackCopyText, useCopyPaste } from "./clipboard.ts"
@@ -32,10 +33,12 @@ type AppProps = {
   initialTasks: Task[]
 }
 
-function adjacentLane(lane: Lane, dir: number): Lane {
-  const idx = LANES.indexOf(lane)
-  const next = Math.min(LANES.length - 1, Math.max(0, idx + dir))
-  return LANES[next] ?? lane
+function adjacentLane(lane: Lane, dir: number, lanes: readonly string[] = LANES): Lane {
+  const order = lanes.length > 0 ? lanes : LANES
+  const idx = order.indexOf(lane)
+  const from = idx < 0 ? 0 : idx
+  const next = Math.min(order.length - 1, Math.max(0, from + dir))
+  return order[next] ?? lane
 }
 
 function withoutId(ids: ReadonlySet<string>, id: string): Set<string> {
@@ -94,6 +97,7 @@ export function App(props: AppProps) {
       const board = await loadBoard(props.paths)
       setConfig(board.config)
       setTasks(board.tasks)
+      setFocusedLane((prev) => (board.config.lanes.includes(prev) ? prev : (board.config.lanes[0] ?? "backlog")))
     } catch (err) {
       showToast(err instanceof Error ? err.message : String(err), "error")
     }
@@ -111,7 +115,7 @@ export function App(props: AppProps) {
   const tooSmall = width < 40 || height < 10
   const singlePane = width < 80
   const herdrBin = resolveHerdrBin(config.herdr_bin)
-  const agentStatuses = useAgentStatuses(screen === "board" && !tooSmall, herdrBin, tasks)
+  const agentStatuses = useAgentStatuses(screen === "board" && !tooSmall, herdrBin, tasks, config.lane_defs)
   const activeTheme = previewTheme ?? config.theme ?? DEFAULT_THEME
   const palette = THEMES[activeTheme] ?? THEMES[DEFAULT_THEME]
 
@@ -144,7 +148,7 @@ export function App(props: AppProps) {
   const reorderSelected = useCallback(
     (dir: -1 | 1) => {
       if (!selectedId) return
-      const { tasks: next, changed } = applyReorder(tasksRef.current, selectedId, dir)
+      const { tasks: next, changed } = applyReorder(tasksRef.current, selectedId, dir, new Date().toISOString(), config.lanes)
       if (changed.length === 0) return
       tasksRef.current = next
       setTasks(next)
@@ -154,17 +158,17 @@ export function App(props: AppProps) {
         void reload()
       })
     },
-    [reload, selectedId, showToast],
+    [config.lanes, reload, selectedId, showToast],
   )
 
   const applyMove = useCallback(
     async (id: string, lane: Lane) => {
       const current = tasksRef.current.find((task) => task.id === id)
       if (!current) return
-      if (current.status === lane && !isLaunchLane(lane)) return
+      if (current.status === lane && !isLaunchLane(lane, config.lane_defs)) return
       const previous = current
       try {
-        if (isLaunchLane(lane)) {
+        if (isLaunchLane(lane, config.lane_defs)) {
           const pending = await moveTaskDetailed(props.paths, id, lane, { launch: false })
           setTasks((all) => all.map((task) => (task.id === id ? pending.task : task)))
           if (!pending.pendingLaunch) {
@@ -175,9 +179,7 @@ export function App(props: AppProps) {
           }
           setLaunchingIds((set) => new Set(set).add(id))
           showToast(`${id} starting…`)
-          const launch =
-            pending.pendingLaunch === "review" ? completeReviewLaunch : completeInProgressLaunch
-          void launch(props.paths, pending.task)
+          void completeLaneLaunch(pending.pendingLaunch, props.paths, pending.task)
             .then((result) => {
               setTasks((all) => all.map((task) => (task.id === id ? result.task : task)))
               showToast(
@@ -205,7 +207,7 @@ export function App(props: AppProps) {
         showToast(err instanceof Error ? err.message : String(err), "error")
       }
     },
-    [focusInLane, props.paths, showToast],
+    [config.lane_defs, focusInLane, props.paths, showToast],
   )
 
   const openCreate = useCallback(() => {
@@ -222,19 +224,19 @@ export function App(props: AppProps) {
       showToast("No task focused.", "error")
       return
     }
-    if (!isLaunchLane(task.status)) {
-      showToast(`${task.id} is not in progress or review.`, "error")
+    if (!isLaunchLane(task.status, config.lane_defs)) {
+      showToast(`${task.id} is not in a launch lane.`, "error")
       return
     }
     void focusTaskLayout({
       bin: herdrBin,
       task,
       behavior: config.herdr_behavior,
+      laneDefs: config.lane_defs,
     })
       .then((result) => showToast(`focused ${result.noun} ${result.id}`))
       .catch((err) => showToast(err instanceof Error ? err.message : String(err), "error"))
-  }, [config.herdr_behavior, focusedId, herdrBin, showToast])
-
+  }, [config.herdr_behavior, config.lane_defs, focusedId, herdrBin, showToast])
   const closeHerdr = useCallback(() => {
     const task = tasksRef.current.find((item) => item.id === focusedId)
     if (!task) {
@@ -437,10 +439,10 @@ export function App(props: AppProps) {
       const targetId = selectedId ?? focusedId
       const target = tasksRef.current.find((task) => task.id === targetId)
       if (selectedId && target) {
-        void applyMove(target.id, adjacentLane(target.status, dir))
+        void applyMove(target.id, adjacentLane(target.status, dir, config.lanes))
         return
       }
-      const nextLane = adjacentLane(focusedLane, dir)
+      const nextLane = adjacentLane(focusedLane, dir, config.lanes)
       focusInLane(nextLane, focusedId)
       return
     }
@@ -568,6 +570,8 @@ export function App(props: AppProps) {
           onFocusTask={onFocusTask}
           onDrop={onDrop}
           toast={toast}
+          lanes={config.lanes}
+          laneDefs={config.lane_defs}
         />
       )}
       {screen === "form" ? (

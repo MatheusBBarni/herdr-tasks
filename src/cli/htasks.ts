@@ -3,7 +3,7 @@
 import { Command, CommanderError } from "commander"
 import { parseAgentName, requireAgent } from "../lib/agents.ts"
 import { colorEnabled, paint } from "../lib/color.ts"
-import { getConfigValue, loadConfig, saveConfig, setConfigValue } from "../lib/config.ts"
+import { createLane, getConfigValue, loadConfig, saveConfig, setConfigValue } from "../lib/config.ts"
 import { formatDoctorReport, runDoctor } from "../lib/doctor.ts"
 import { CliError } from "../lib/errors.ts"
 import { parseBlockersInput } from "../lib/blockers.ts"
@@ -20,7 +20,7 @@ import {
 } from "../lib/store.ts"
 import { formatTable } from "../lib/table.ts"
 import { basename } from "../lib/text.ts"
-import { LANES, type Lane, type Task } from "../lib/types.ts"
+import type { Task } from "../lib/types.ts"
 import pkg from "../../package.json" with { type: "json" }
 
 
@@ -104,6 +104,7 @@ async function run(): Promise<void> {
 Examples:
   $ htasks init --prefix dev --agent claude
   $ htasks create --title "Add login"
+  $ htasks create lane --name QA --prompt prompts/qa.md --next-step done
   $ htasks list --json
   $ htasks move dev-1 in_progress
   $ htasks doctor
@@ -147,7 +148,8 @@ Examples:
       const paths = await requireBoardRoot()
       let tasks = await listTasks(paths)
       if (opts.status) {
-        const lane = requireLane(opts.status)
+        const config = await loadConfig(paths)
+        const lane = requireLane(opts.status, config.lanes)
         tasks = tasks.filter((task) => task.status === lane)
       }
       if (opts.json) {
@@ -187,10 +189,30 @@ Examples:
       }
     })
 
-  program
-    .command("create")
-    .description("Create a task")
-    .requiredOption("--title <title>", "task title")
+  const createCmd = program.command("create").description("Create a task or lane")
+
+  createCmd
+    .command("lane")
+    .description("Add a custom board lane")
+    .requiredOption("--name <name>", "name shown on the board")
+    .option("--id <identifier>", "status identifier stored on tasks (default: slug of name)")
+    .option("--prompt <text-or-file>", "prompt file in prompts/ or inline text")
+    .option("--next-step <lane>", "lane to move to when this lane finishes", "done")
+    .action(
+      async (opts: { name: string; id?: string; prompt?: string; nextStep: string }) => {
+        const paths = await requireBoardRoot()
+        const lane = await createLane(paths, {
+          name: opts.name,
+          id: opts.id,
+          prompt: opts.prompt,
+          next_step: opts.nextStep,
+        })
+        writeOut(lane.id)
+      },
+    )
+
+  createCmd
+    .option("--title <title>", "task title")
     .option("--description <text>", "markdown body")
     .option("--type <type>", "task type from config task_types")
     .option("--agent <key>", "agent map key")
@@ -201,7 +223,7 @@ Examples:
     .option("--worktree <yes|no>", "create a git worktree when moving to in_progress")
     .action(
       async (opts: {
-        title: string
+        title?: string
         description?: string
         type?: string
         agent?: string
@@ -211,8 +233,10 @@ Examples:
         blockers?: string
         worktree?: string
       }) => {
+        if (!opts.title?.trim()) {
+          throw new CliError("required option '--title <title>' not specified")
+        }
         const paths = await requireBoardRoot()
-        const status = requireLane(opts.status) as Lane
         const task = await createTask(paths, {
           title: opts.title,
           description: opts.description,
@@ -220,7 +244,7 @@ Examples:
           agent: opts.agent,
           effort: opts.effort,
           project: opts.project,
-          status,
+          status: opts.status,
           blockers: opts.blockers !== undefined ? parseBlockersInput(opts.blockers) : undefined,
           worktree: opts.worktree !== undefined ? normalizeWorktree(opts.worktree) : undefined,
         })
@@ -232,7 +256,7 @@ Examples:
     .command("move")
     .description("Move a task to a lane")
     .argument("<id>", "task id")
-    .argument("<lane>", `one of ${LANES.join(", ")}`)
+    .argument("<lane>", "configured lane identifier")
     .action(async (id: string, lane: string) => {
       const paths = await requireBoardRoot()
       const task = await moveTask(paths, id, lane)
