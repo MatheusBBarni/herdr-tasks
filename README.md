@@ -52,21 +52,30 @@ When hosted as a Herdr plugin, discovery starts at `HTASKS_ROOT`, then the works
 htasks is also a Herdr plugin: the existing CLI+TUI, opened as an overlay pane.
 Do not rewrite it, and do not replace the `htasks` CLI — plugin actions cannot pass extra args.
 
-Local authoring (`plugin link` does **not** run `[[build]]`):
+### Install (GitHub, not npm)
+
+Herdr installs plugins from GitHub only (`herdr plugin install owner/repo`).
+It does not read the npm registry. Do not `npm install htasks`.
+
+```bash
+herdr plugin install MatheusBBarni/herdr-tasks
+```
+
+That runs `[[build]]` (compile or `bun install`) and copies `htasks` to `~/.local/bin`.
+Put `~/.local/bin` on `PATH` so agents can still run `htasks`.
+Override the copy destination with `HTASKS_CLI_INSTALL_DIR`.
+
+This public repo has `herdr-plugin.toml` on `main` and the GitHub topic `herdr-plugin`, so it is listed on [herdr.dev/plugins](https://herdr.dev/plugins/) after the next ~30 minute index refresh.
+
+### Local authoring
+
+`plugin link` does **not** run `[[build]]`.
 
 ```bash
 herdr plugin link /path/to/herdr-tasks
 herdr plugin action invoke open-board --plugin htasks
 ```
 
-GitHub install (runs `[[build]]`: compile or `bun install`, then copy `htasks` to `~/.local/bin`):
-
-```bash
-herdr plugin install <owner>/herdr-tasks
-```
-
-Put `~/.local/bin` on `PATH` so agents can still run `htasks`.
-Override the copy destination with `HTASKS_CLI_INSTALL_DIR`.
 Linked checkouts keep using `bun link` / `bun run src/cli/htasks.ts`.
 
 Optional keybinding in `~/.config/herdr/config.toml` (not written by install):
@@ -364,6 +373,7 @@ Source of truth is markdown + YAML frontmatter, not the cache.
 - `herdr plugin action invoke` cannot pass extra args.
   Keep using the `htasks` CLI.
   `plugin install` copies `htasks` to `~/.local/bin` (not on `plugin link`).
+  There is no npm package; distribution is `herdr plugin install MatheusBBarni/herdr-tasks`.
 - Press `q` to close the overlay before `o` if the board is covering the task layout.
 - `htasks config set` rewrites `config.toml` and drops comments.
 - `NO_COLOR` and `TERM=dumb` disable color.
@@ -379,4 +389,4 @@ herdr plugin link .
 herdr plugin action invoke open-board --plugin htasks
 ```
 
-Tag the GitHub repo `herdr-plugin` when publishing to [herdr.dev/plugins](https://herdr.dev/plugins/).
+This repo is tagged `herdr-plugin` so [herdr.dev/plugins](https://herdr.dev/plugins/) indexes it (refresh ~30 minutes).
