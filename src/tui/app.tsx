@@ -395,12 +395,12 @@ export function App(props: AppProps) {
         setFocusedId(firstVisibleId(tasksInLane(tasksRef.current, lane), focusedId))
         return
       }
-      if (key.name === "j" || key.name === "down") {
+      if (key.name === "down") {
         key.preventDefault?.()
         moveFocused(1)
         return
       }
-      if (key.name === "k" || key.name === "up") {
+      if (key.name === "up") {
         key.preventDefault?.()
         moveFocused(-1)
         return

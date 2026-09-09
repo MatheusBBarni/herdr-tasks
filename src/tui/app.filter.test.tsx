@@ -85,37 +85,66 @@ async function pressEnter() {
   await testSetup!.renderOnce()
 }
 
-test("j/k still move among matches while the lane filter is open", async () => {
-  const setup = await mountBoard([
-    task({ id: "dev-1", status: "backlog", title: "Alpha first", order: 0 }),
-    task({ id: "dev-2", status: "backlog", title: "Alpha second", order: 1 }),
-    task({ id: "dev-3", status: "backlog", title: "Other task", order: 2 }),
-  ])
+async function pressArrow(direction: "up" | "down") {
+  await act(async () => {
+    testSetup!.mockInput.pressArrow(direction)
+    await Bun.sleep(20)
+  })
+  await testSetup!.renderOnce()
+}
 
+const alphaTasks = [
+  task({ id: "dev-1", status: "backlog", title: "Alpha first", order: 0 }),
+  task({ id: "dev-2", status: "backlog", title: "Alpha second", order: 1 }),
+  task({ id: "dev-3", status: "backlog", title: "Other task", order: 2 }),
+]
+
+async function openAlphaFilter() {
+  const setup = await mountBoard(alphaTasks)
   await press("f")
   await act(async () => {
     await Bun.sleep(80)
   })
   await setup.renderOnce()
-
   await act(async () => {
     await setup.mockInput.typeText("Alpha")
   })
   await setup.renderOnce()
-
-  let frame = setup.captureCharFrame()
+  const frame = setup.captureCharFrame()
   expect(frame).toContain("Alpha")
   expect(frame).toContain("dev-1")
   expect(frame).toContain("dev-2")
   expect(frame).not.toContain("Other task")
+  return setup
+}
 
-  await press("j")
-  frame = setup.captureCharFrame()
-  expect(frame).not.toContain("Alphaj")
-
+test("down arrow moves among matches while the lane filter is open", async () => {
+  const setup = await openAlphaFilter()
+  await pressArrow("down")
   await pressEnter()
   await pressEnter()
-  frame = setup.captureCharFrame()
+  const frame = setup.captureCharFrame()
   expect(frame).toContain("dev-2 preview")
+  expect(frame).not.toContain("dev-1 preview")
+})
+
+test("up arrow moves among matches while the lane filter is open", async () => {
+  const setup = await openAlphaFilter()
+  await pressArrow("down")
+  await pressArrow("up")
+  await pressEnter()
+  await pressEnter()
+  const frame = setup.captureCharFrame()
+  expect(frame).toContain("dev-1 preview")
+  expect(frame).not.toContain("dev-2 preview")
+})
+
+test("j and k still type into the filter query", async () => {
+  const setup = await openAlphaFilter()
+  await press("j")
+  await press("k")
+  const frame = setup.captureCharFrame()
+  expect(frame).toContain("Alphajk")
+  expect(frame).toContain("no matches")
   expect(frame).not.toContain("dev-1 preview")
 })
