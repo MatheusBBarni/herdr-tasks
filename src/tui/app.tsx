@@ -462,10 +462,10 @@ export function App(props: AppProps) {
       if (task?.status === "done" && hasHerdrLayout(task)) {
         key.preventDefault?.()
         closeHerdr()
-        return
       }
+      return
     }
-    if ((key.name === "n" || key.name === "c") && !key.ctrl && !key.meta) {
+    if (key.name === "n" && !key.ctrl && !key.meta) {
       key.preventDefault?.()
       openCreate()
       return
