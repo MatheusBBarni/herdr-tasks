@@ -168,7 +168,6 @@ export function Board(props: BoardProps) {
           flexGrow={1}
           flexShrink={1}
           width="100%"
-          height="100%"
           scrollY
           scrollX={false}
           verticalScrollbarOptions={scrollbar}

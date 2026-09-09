@@ -23,9 +23,11 @@ export function useTheme(): ThemePalette {
   return useContext(ThemeContext)
 }
 
+export const VERTICAL_SCROLLBAR_WIDTH = 1
+
 export function verticalScrollbarOptions(theme: ThemePalette, color: boolean) {
   return {
-    width: 1,
+    width: VERTICAL_SCROLLBAR_WIDTH,
     flexShrink: 0,
     ...(color
       ? {
