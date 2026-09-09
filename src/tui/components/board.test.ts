@@ -16,3 +16,8 @@ test("columnHeading is uppercase name · count", () => {
   expect(columnHeading("done", 0)).toBe("DONE · 0")
   expect(columnHeading("qa", 3, "QA")).toBe("QA · 3")
 })
+
+test("columnHeading shows shown/total when a filter is active", () => {
+  expect(columnHeading("backlog", 2, undefined, 5)).toBe("BACKLOG · 2/5")
+  expect(columnHeading("in_progress", 0, undefined, 3)).toBe("IN PROGRESS · 0/3")
+})

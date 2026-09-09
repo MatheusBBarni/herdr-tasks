@@ -93,3 +93,39 @@ test("board 60-col single pane still shows the status word", async () => {
   expect(frame).not.toContain("Later")
   expect(frame).not.toContain("feat  working  pi  herdr-tasks")
 })
+
+test("board filter input is above the lane and hides non-matching cards", async () => {
+  testSetup = await testRender(
+    <Board
+      tasks={[
+        ...tasks,
+        task({ id: "dev-9", status: "backlog", title: "Unrelated" }),
+      ]}
+      width={80}
+      boardName="herdr-tasks"
+      prefix="dev"
+      defaultProject={project}
+      singlePane={false}
+      focusedLane="backlog"
+      focusedId="dev-1"
+      selectedId={null}
+      launchingIds={new Set()}
+      agentStatuses={statuses}
+      filterQueries={{ backlog: "Later" }}
+      onFocusTask={() => {}}
+      onDrop={() => {}}
+      toast={null}
+    />,
+    { width: 80, height: 24 },
+  )
+  await testSetup.renderOnce()
+  await act(async () => {
+    await Bun.sleep(80)
+  })
+  await testSetup.renderOnce()
+  const frame = testSetup.captureCharFrame()
+  expect(frame).toContain("BACKLOG · 1/2")
+  expect(frame).toContain("Later")
+  expect(frame).not.toContain("Unrelated")
+  expect(frame).toContain("dev-14")
+})

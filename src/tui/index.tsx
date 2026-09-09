@@ -10,7 +10,7 @@ export async function runBoard(): Promise<void> {
   const paths = await requireBoardRoot(start)
   const board = await loadBoard(paths)
   const renderer = await createCliRenderer({
-    exitOnCtrlC: true,
+    exitOnCtrlC: false,
     useMouse: true,
   })
   createRoot(renderer).render(

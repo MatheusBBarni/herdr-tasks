@@ -2,6 +2,7 @@ import type { LiveAgentStatus } from "../../lib/herdr.ts"
 import { isLaunchLane } from "../../lib/lanes.ts"
 import { tasksInLane } from "../../lib/order.ts"
 import { LANES, type Lane, type LaneDef, type Task } from "../../lib/types.ts"
+import { filterTasks } from "../filter.ts"
 import { HINTS_NARROW, HINTS_WIDE, fitHints, hintsForTask } from "../hints.ts"
 import { Column } from "./column.tsx"
 import { HintBar } from "./hint-bar.tsx"
@@ -20,6 +21,11 @@ type BoardProps = {
   selectedId: string | null
   launchingIds: ReadonlySet<string>
   agentStatuses: ReadonlyMap<string, LiveAgentStatus>
+  filterQueries?: Partial<Record<Lane, string>>
+  filterLane?: Lane | null
+  onFilterChange?: (lane: Lane, query: string) => void
+  onFilterSubmit?: () => void
+  onFilterFocus?: (lane: Lane) => void
   onFocusTask: (id: string) => void
   onDrop: (lane: Lane) => void
   toast: ToastInfo | null
@@ -43,7 +49,10 @@ export function Board(props: BoardProps) {
   const laneOrder = props.lanes?.length ? props.lanes : LANES
   const lanes = props.singlePane ? [props.focusedLane] : [...laneOrder]
   const colWidths = splitColumnWidths(props.width, lanes.length)
-  const byLane = (lane: Lane) => tasksInLane(props.tasks, lane)
+  const byLane = (lane: Lane) => {
+    const all = tasksInLane(props.tasks, lane)
+    return filterTasks(all, props.filterQueries?.[lane] ?? "")
+  }
   const focusedTask = props.tasks.find((task) => task.id === props.focusedId) ?? null
   const hints = fitHints(
     hintsForTask(
@@ -75,6 +84,7 @@ export function Board(props: BoardProps) {
             lane={lane}
             name={props.laneDefs?.[lane]?.name}
             tasks={byLane(lane)}
+            totalCount={tasksInLane(props.tasks, lane).length}
             width={colWidths[i] ?? 12}
             focused={props.focusedLane === lane}
             focusedId={props.focusedId}
@@ -82,6 +92,11 @@ export function Board(props: BoardProps) {
             launchingIds={props.launchingIds}
             agentStatuses={props.agentStatuses}
             defaultProject={props.defaultProject}
+            filterQuery={props.filterQueries?.[lane] ?? ""}
+            filterEditing={props.filterLane === lane}
+            onFilterChange={(query) => props.onFilterChange?.(lane, query)}
+            onFilterSubmit={() => props.onFilterSubmit?.()}
+            onFilterFocus={() => props.onFilterFocus?.(lane)}
             onFocusTask={props.onFocusTask}
             onDrop={props.onDrop}
             laneDefs={props.laneDefs}

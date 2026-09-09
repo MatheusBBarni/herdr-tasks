@@ -310,7 +310,7 @@ export function SettingsForm(props: SettingsFormProps) {
           >
             <input
               value={bin}
-              onChange={(value) => {
+              onInput={(value) => {
                 binRef.current = value
                 setBin(value)
                 clearError("herdr_bin")
@@ -333,7 +333,7 @@ export function SettingsForm(props: SettingsFormProps) {
       >
         <input
           value={project}
-          onChange={(value) => {
+          onInput={(value) => {
             projectRef.current = value
             setProject(value)
             clearError("default_project")

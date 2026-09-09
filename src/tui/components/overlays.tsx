@@ -38,7 +38,8 @@ export function HelpOverlay(props: OverlayProps & { behavior: HerdrBehavior }) {
       <text>j/k or arrows   move focus (reorder selected)</text>
       <text>h/l or arrows   change column (or move selected)</text>
       <text>space           select card</text>
-      <text>esc             clear selection / close</text>
+      <text>esc             clear filter / selection / close</text>
+      <text>f               filter lane</text>
       <text>n               new task</text>
       <text>{`c               close herdr ${noun} (done)`}</text>
       <text>e               edit (not done)</text>
@@ -47,7 +48,8 @@ export function HelpOverlay(props: OverlayProps & { behavior: HerdrBehavior }) {
       <text>enter           preview</text>
       <text>{`o               focus herdr ${noun} (launch lanes)`}</text>
       <text>?               help</text>
-      <text>q / Ctrl+C      quit</text>
+      <text>Ctrl+C / Ctrl+V copy / paste</text>
+      <text>q               quit</text>
       <text>click           focus card</text>
       <text>drag            move to another column</text>
       <text> </text>

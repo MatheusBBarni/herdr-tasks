@@ -15,11 +15,13 @@ import { EMPTY_HERDR, LANES, type Config, type Lane, type Task } from "../lib/ty
 import { isLaunchLane } from "../lib/lanes.ts"
 import { watchTasks } from "../lib/watch.ts"
 import { useAgentStatuses } from "./agent-status.ts"
+import { fallbackCopyText, useCopyPaste } from "./clipboard.ts"
 import { Board } from "./components/board.tsx"
 import { defaultFormValues, descriptionFromBody, TaskForm, type FormValues } from "./components/form.tsx"
 import { HelpOverlay, PreviewOverlay, TooSmall } from "./components/overlays.tsx"
 import { SettingsForm, type SettingsValues } from "./components/settings.tsx"
 import type { ToastInfo, ToastKind } from "./components/toast.tsx"
+import { filterTasks } from "./filter.ts"
 import { ThemeProvider, tuiColor } from "./theme.ts"
 
 type Screen = "board" | "form" | "preview" | "help" | "settings"
@@ -45,6 +47,11 @@ function withoutId(ids: ReadonlySet<string>, id: string): Set<string> {
   return next
 }
 
+function firstVisibleId(list: readonly Task[], id: string | null): string | null {
+  if (id && list.some((task) => task.id === id)) return id
+  return list[0]?.id ?? null
+}
+
 export function App(props: AppProps) {
   const renderer = useRenderer()
   const { width, height } = useTerminalDimensions()
@@ -63,12 +70,16 @@ export function App(props: AppProps) {
   const [focusedLane, setFocusedLane] = useState<Lane>("backlog")
   const [focusedId, setFocusedId] = useState<string | null>(props.initialTasks[0]?.id ?? null)
   const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [filterQueries, setFilterQueries] = useState<Partial<Record<Lane, string>>>({})
+  const [filterLane, setFilterLane] = useState<Lane | null>(null)
   const [toast, setToast] = useState<ToastInfo | null>(null)
   const [launchingIds, setLaunchingIds] = useState<Set<string>>(() => new Set())
   const dragId = useRef<string | null>(null)
   const closingRef = useRef(false)
   const tasksRef = useRef(tasks)
   tasksRef.current = tasks
+  const filterQueriesRef = useRef(filterQueries)
+  filterQueriesRef.current = filterQueries
 
   const showToast = useCallback((message: string, kind: ToastKind = "ok") => {
     setToast({ message, kind })
@@ -111,19 +122,21 @@ export function App(props: AppProps) {
   const focusInLane = useCallback(
     (lane: Lane, id: string | null) => {
       setFocusedLane(lane)
-      const list = tasksInLane(tasksRef.current, lane)
-      if (id && list.some((task) => task.id === id)) {
-        setFocusedId(id)
-        return
-      }
-      setFocusedId(list[0]?.id ?? null)
+      const list = filterTasks(
+        tasksInLane(tasksRef.current, lane),
+        filterQueriesRef.current[lane] ?? "",
+      )
+      setFocusedId(firstVisibleId(list, id))
     },
     [],
   )
 
   const moveFocused = useCallback(
     (dir: -1 | 1) => {
-      const list = tasksInLane(tasksRef.current, focusedLane)
+      const list = filterTasks(
+        tasksInLane(tasksRef.current, focusedLane),
+        filterQueriesRef.current[focusedLane] ?? "",
+      )
       if (list.length === 0) return
       const idx = list.findIndex((task) => task.id === focusedId)
       const next = list[Math.min(list.length - 1, Math.max(0, (idx < 0 ? 0 : idx) + dir))]
@@ -351,21 +364,57 @@ export function App(props: AppProps) {
     [props.paths, showToast],
   )
 
+  useCopyPaste(() => fallbackCopyText({ screen, task: focusedTask }))
+
   useKeyboard((key) => {
-    if (key.ctrl && key.name === "c") {
-      renderer.destroy()
-      return
-    }
-    if (key.name === "q" && screen !== "form" && screen !== "settings") {
+    if (
+      key.name === "q" &&
+      !key.ctrl &&
+      !key.meta &&
+      screen !== "form" &&
+      screen !== "settings" &&
+      !filterLane
+    ) {
       renderer.destroy()
       return
     }
     if (tooSmall) return
     if (screen !== "board") return
 
+    if (filterLane) {
+      if (key.name === "escape") {
+        key.preventDefault?.()
+        const lane = filterLane
+        setFilterLane(null)
+        setFilterQueries((current) => {
+          if (current[lane] == null) return current
+          const next = { ...current }
+          delete next[lane]
+          return next
+        })
+        setFocusedId(firstVisibleId(tasksInLane(tasksRef.current, lane), focusedId))
+      }
+      return
+    }
+
     if (key.name === "escape") {
+      if (filterQueries[focusedLane]) {
+        setFilterQueries((current) => {
+          if (current[focusedLane] == null) return current
+          const next = { ...current }
+          delete next[focusedLane]
+          return next
+        })
+        setFocusedId(firstVisibleId(tasksInLane(tasksRef.current, focusedLane), focusedId))
+        return
+      }
       setSelectedId(null)
       setToast(null)
+      return
+    }
+    if (key.name === "f" && !key.ctrl && !key.meta && !key.shift) {
+      key.preventDefault?.()
+      setFilterLane(focusedLane)
       return
     }
     if (key.name === "space") {
@@ -405,7 +454,7 @@ export function App(props: AppProps) {
         return
       }
     }
-    if (key.name === "n" || key.name === "c") {
+    if ((key.name === "n" || key.name === "c") && !key.ctrl && !key.meta) {
       key.preventDefault?.()
       openCreate()
       return
@@ -442,6 +491,7 @@ export function App(props: AppProps) {
       const task = tasksRef.current.find((item) => item.id === id)
       if (!task) return
       dragId.current = id
+      setFilterLane(null)
       setFocusedLane(task.status)
       setFocusedId(id)
       setSelectedId(id)
@@ -460,6 +510,29 @@ export function App(props: AppProps) {
     },
     [applyMove],
   )
+
+  const onFilterChange = useCallback((lane: Lane, query: string) => {
+    setFilterQueries((current) => {
+      if (!query) {
+        if (current[lane] == null) return current
+        const next = { ...current }
+        delete next[lane]
+        return next
+      }
+      return { ...current, [lane]: query }
+    })
+    const list = filterTasks(tasksInLane(tasksRef.current, lane), query)
+    setFocusedId((id) => firstVisibleId(list, id))
+  }, [])
+
+  const onFilterSubmit = useCallback(() => {
+    setFilterLane(null)
+  }, [])
+
+  const onFilterFocus = useCallback((lane: Lane) => {
+    setFilterLane(lane)
+    setFocusedLane(lane)
+  }, [])
 
   const shell = tooSmall ? (
     <box width="100%" height="100%" backgroundColor={color ? palette.bg : undefined}>
@@ -489,6 +562,11 @@ export function App(props: AppProps) {
           selectedId={selectedId}
           launchingIds={launchingIds}
           agentStatuses={agentStatuses}
+          filterQueries={filterQueries}
+          filterLane={filterLane}
+          onFilterChange={onFilterChange}
+          onFilterSubmit={onFilterSubmit}
+          onFilterFocus={onFilterFocus}
           onFocusTask={onFocusTask}
           onDrop={onDrop}
           toast={toast}
