@@ -505,7 +505,7 @@ export function App(props: AppProps) {
       setFilterLane(null)
       setFocusedLane(task.status)
       setFocusedId(id)
-      setSelectedId(id)
+      setSelectedId(null)
     },
     [],
   )
