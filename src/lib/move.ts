@@ -12,16 +12,17 @@ import {
   reviewPrompt,
   type HerdrRunner,
 } from "./herdr.ts"
+import { buildCustomLanePrompt, isLaunchLane, loadLanePromptText, resolvedLaneDef } from "./lanes.ts"
 import { resolveProjectPath, type BoardPaths } from "./root.ts"
 import { formatBlockedError } from "./blockers.ts"
 import { nextOrder } from "./order.ts"
 import { getTask, listTasks, requireLane, saveTask, writeTask } from "./store.ts"
-import { EMPTY_HERDR, isLaunchLane, type Lane, type Task } from "./types.ts"
+import { EMPTY_HERDR, type Lane, type LaneDef, type Task } from "./types.ts"
 
 export type MoveResult = {
   task: Task
   warning?: string
-  pendingLaunch?: "in_progress" | "review"
+  pendingLaunch?: string
 }
 
 export async function moveTask(
@@ -40,13 +41,14 @@ export async function moveTaskDetailed(
   laneRaw: string,
   opts: { runner?: HerdrRunner; launch?: boolean } = {},
 ): Promise<MoveResult> {
-  const lane = requireLane(laneRaw)
   const config = await loadConfig(paths)
+  const lane = requireLane(laneRaw, config.lanes)
   const previous = await getTask(paths, id)
   const runner = opts.runner ?? defaultRunner
   const bin = resolveHerdrBin(config.herdr_bin)
+  const launch = isLaunchLane(lane, config.lane_defs)
 
-  if (previous.status === lane && !isLaunchLane(lane)) {
+  if (previous.status === lane && !launch) {
     return { task: previous }
   }
 
@@ -65,11 +67,11 @@ export async function moveTaskDetailed(
   }
   await writeTask(next)
 
-  if (!isLaunchLane(lane)) return { task: next }
+  if (!launch) return { task: next }
 
   if (next.herdr.pane_id) {
     const alive = await herdrPaneAlive(bin, next.herdr.pane_id, runner)
-    const skipLaunch = alive && (lane === "in_progress" || previous.status === "review")
+    const skipLaunch = alive && (lane === "in_progress" || previous.status === lane)
     if (skipLaunch) return { task: next }
     if (!alive) {
       next.herdr = { ...EMPTY_HERDR }
@@ -108,7 +110,7 @@ async function buildReviewPrompt(
 }
 
 async function completeLaunch(
-  lane: "in_progress" | "review",
+  lane: string,
   paths: BoardPaths,
   task: Task,
   opts: LaunchOpts = {},
@@ -119,9 +121,17 @@ async function completeLaunch(
   const agentKey = lane === "review" ? reviewAgentKey(config, task.agent) : task.agent
   const agent = requireAgent(config, agentKey)
   const project = await resolveProjectPath(paths.boardRoot, task.project)
-  const prompt = lane === "review" ? await buildReviewPrompt(paths, config, task.id) : undefined
+  const def = resolvedLaneDef(config, lane)
+  let prompt: string | undefined
+  if (lane === "review") {
+    prompt = await buildReviewPrompt(paths, config, task.id)
+  } else if (lane !== "in_progress") {
+    const text = await loadLanePromptText(paths, def.prompt)
+    if (!text) fail(`Lane prompt is empty for '${lane}'. Set [lane.${lane}] prompt.`)
+    prompt = buildCustomLanePrompt(text, task.id, def.next_step)
+  }
 
-  if (lane === "review" && task.herdr.pane_id && prompt) {
+  if (lane !== "in_progress" && task.herdr.pane_id && prompt) {
     const paneId = task.herdr.pane_id
     if (await herdrPaneAlive(bin, paneId, runner)) {
       await ensureHerdrServer(bin, runner)
@@ -130,7 +140,7 @@ async function completeLaunch(
         paneId,
         prompt,
         runner,
-        notReadyWarning: `Herdr has not detected an agent in ${paneId} yet. Review prompt not sent.`,
+        notReadyWarning: `Herdr has not detected an agent in ${paneId} yet. Prompt not sent.`,
       })
       task.project = project
       task.status = lane
@@ -146,6 +156,7 @@ async function completeLaunch(
     agentKey,
     skillPath: paths.skillPath,
     prompt,
+    nextStep: def.next_step || "review",
     behavior: config.herdr_behavior,
     runner,
     boardRoot: paths.boardRoot,
@@ -173,15 +184,15 @@ export function completeReviewLaunch(
   return completeLaunch("review", paths, task, opts)
 }
 
-export function laneLabel(lane: Lane): string {
-  switch (lane) {
-    case "backlog":
-      return "Backlog"
-    case "in_progress":
-      return "In Progress"
-    case "review":
-      return "Review"
-    case "done":
-      return "Done"
-  }
+export function completeLaneLaunch(
+  lane: string,
+  paths: BoardPaths,
+  task: Task,
+  opts: LaunchOpts = {},
+): Promise<MoveResult> {
+  return completeLaunch(lane, paths, task, opts)
+}
+
+export function laneLabel(lane: Lane, defs: Record<string, LaneDef> = {}): string {
+  return resolvedLaneDef({ lane_defs: defs }, lane).name
 }

@@ -225,3 +225,27 @@ test("cli doctor json reports checks", async () => {
   expect(report.checks.some((check) => check.id === "herdr")).toBe(true)
   expect(report.checks.some((check) => check.id === "herdr_skill")).toBe(true)
 })
+
+test("cli create lane adds a custom column", async () => {
+  const dir = await tempDir()
+  const init = await run(dir, ["init", "--prefix", "dev", "--agent", "claude", "--project", dir])
+  expect(init.code).toBe(0)
+  const created = await run(dir, [
+    "create",
+    "lane",
+    "--name",
+    "QA",
+    "--prompt",
+    "Check the tests.",
+    "--next-step",
+    "done",
+  ])
+  expect(created.code).toBe(0)
+  expect(created.stdout.trim()).toBe("qa")
+  const configText = await Bun.file(join(dir, ".herdr-tasks", "config.toml")).text()
+  expect(configText).toContain("[lane.qa]")
+  expect(configText).toContain('lanes = ["backlog", "in_progress", "review", "qa", "done"]')
+  const dup = await run(dir, ["create", "lane", "--name", "QA"])
+  expect(dup.code).not.toBe(0)
+  expect(dup.stderr).toContain("already exists")
+})

@@ -47,6 +47,15 @@ export function stringifyConfig(config: Config): string {
     lines.push(`path = ${tomlString(project.path)}`)
     lines.push("")
   }
+  for (const id of config.lanes) {
+    const def = config.lane_defs[id]
+    if (!def) continue
+    lines.push(`[${mapTableKey("lane", id)}]`)
+    lines.push(`name = ${tomlString(def.name)}`)
+    lines.push(`prompt = ${tomlString(def.prompt)}`)
+    lines.push(`next_step = ${tomlString(def.next_step)}`)
+    lines.push("")
+  }
   lines.push("[review]")
   lines.push(`agent = ${tomlString(config.review.agent)}`)
   lines.push(`skill = ${tomlString(config.review.skill)}`)
@@ -67,6 +76,7 @@ default_project = ${tomlString(opts.defaultProject)}
 task_types = ["feat", "fix", "bug", "chore", "docs", "refactor", "test"]
 default_type = "feat"
 lanes = ["backlog", "in_progress", "review", "done"]
+# extra columns: add an id here and a [lane.<id>] table (name, prompt, next_step)
 next_id = 1
 
 [herdr]

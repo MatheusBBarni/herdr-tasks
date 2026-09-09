@@ -45,7 +45,7 @@ export function HelpOverlay(props: OverlayProps & { behavior: HerdrBehavior }) {
       <text>s               settings</text>
       <text>form            tab next  ^enter save  esc cancel</text>
       <text>enter           preview</text>
-      <text>{`o               focus herdr ${noun} (in progress / review)`}</text>
+      <text>{`o               focus herdr ${noun} (launch lanes)`}</text>
       <text>?               help</text>
       <text>q / Ctrl+C      quit</text>
       <text>click           focus card</text>

@@ -269,7 +269,7 @@ test("focusTaskLayout rejects backlog and missing layout", async () => {
       task: { ...sample, status: "backlog" },
       runner,
     }),
-  ).rejects.toThrow("is not in progress or review")
+  ).rejects.toThrow("is not in a launch lane")
   await expect(
     focusTaskLayout({
       bin: "herdr",

@@ -14,4 +14,5 @@ test("columnHeading is uppercase name · count", () => {
   expect(columnHeading("in_progress", 1)).toBe("IN PROGRESS · 1")
   expect(columnHeading("review", 2)).toBe("REVIEW · 2")
   expect(columnHeading("done", 0)).toBe("DONE · 0")
+  expect(columnHeading("qa", 3, "QA")).toBe("QA · 3")
 })

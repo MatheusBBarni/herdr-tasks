@@ -126,6 +126,7 @@ htasks board
 htasks list [--status <lane>] [--json]
 htasks show <id> [--json]
 htasks create --title T [--description D] [--type T] [--agent A] [--effort E] [--project P] [--status backlog] [--blockers id,id] [--worktree yes|no]
+htasks create lane --name N [--id <identifier>] [--prompt <text-or-file>] [--next-step <lane>]
 htasks move <id> <lane>
 htasks edit <id> [--title T] [--description D] [--type T] [--agent A] [--effort E] [--project P] [--blockers id,id] [--worktree yes|no]
 htasks path <id>
@@ -154,7 +155,7 @@ Discovery: walk up from cwd to `.herdr-tasks/config.toml`. TUI and CLI share tha
 
 Optional cache: `.herdr-tasks/.index.json`. **Source of truth is markdown + YAML frontmatter**, not the cache.
 
-Lanes: `backlog` | `in_progress` | `review` | `done`.
+Lanes: `backlog` | `in_progress` | `review` | `done`, plus custom ids from `config.toml` `lanes` / `[lane.<id>]`.
 
 Task `agent` stores the **map key** (e.g. `claude`), not the raw command. Unknown key → error, list known keys, do not guess a binary.
 
@@ -213,10 +214,10 @@ Ship `skills/htasks/SKILL.md` and copy it to `.herdr-tasks/skills/htasks/` on `i
 
 ## TUI (`htasks board`)
 
-- Columns: backlog / in_progress / review / done.
+- Columns: from config `lanes` (default backlog / in_progress / review / done).
 - Card: id, title, type, agent key, project basename.
 - Space select; Left/Right or h/l move; Up/Down or j/k reorder selected; Esc clear; mouse click + drag if possible.
-- n create, c close Herdr layout (done), e edit, s settings, Enter preview, o focus Herdr layout (in_progress / review), ? help, q / Ctrl+C quit (`renderer.destroy()`).
+- n create, c close Herdr layout (done), e edit, s settings, Enter preview, o focus Herdr layout (launch lanes), ? help, q / Ctrl+C quit (`renderer.destroy()`).
 - Form: Tab fields; Enter submit except in description (newline) and blockers (toggle); Ctrl+Enter always submits; Esc cancel; title required; project path must exist (select from `[projects.*]` when present); agent must be a config key; type is a `task_types` key or none; effort is `low`/`medium`/`high`/`xhigh`/`max` or none and is applied when starting the agent; worktree is Yes/No (default No); blockers is a select of other tasks.
 - Default project to cwd when inside a repo; default agent to `default_agent`; default type to `default_type`.
 

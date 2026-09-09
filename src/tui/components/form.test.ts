@@ -10,6 +10,7 @@ function cfg(partial: Partial<Config> = {}): Config {
     default_project: "",
     theme: "nord",
     lanes: ["backlog", "in_progress", "review", "done"],
+    lane_defs: {},
     next_id: 1,
     herdr_bin: "herdr",
     herdr_behavior: "workspace",
