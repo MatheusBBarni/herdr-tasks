@@ -9,6 +9,10 @@ export function cardRenderableId(taskId: string): string {
   return `card:${taskId}`
 }
 
+export function laneRenderableId(lane: string): string {
+  return `lane:${lane}`
+}
+
 export function scrollOffsetToReveal(opts: {
   index: number
   itemHeight: number
@@ -53,3 +57,31 @@ export function revealTaskInLane(
   }
   return true
 }
+
+export function revealLaneInBoard(
+  scrollbox: ScrollBoxRenderable | null,
+  lane: string | null,
+  index: number,
+  laneWidth: number,
+): boolean {
+  if (!scrollbox || !lane || index < 0 || laneWidth <= 0) return false
+  const viewportWidth = scrollbox.viewport.width
+  if (viewportWidth <= 0) return false
+
+  const next = scrollOffsetToReveal({
+    index,
+    itemHeight: laneWidth,
+    gap: 0,
+    viewportHeight: viewportWidth,
+    currentOffset: scrollbox.scrollLeft,
+  })
+  if (next !== scrollbox.scrollLeft) scrollbox.scrollLeft = next
+
+  const childId = laneRenderableId(lane)
+  const child = scrollbox.content.findDescendantById(childId)
+  if (child && child.width > 0) {
+    scrollbox.scrollChildIntoView(childId)
+  }
+  return true
+}
+

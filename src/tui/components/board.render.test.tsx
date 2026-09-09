@@ -45,7 +45,15 @@ const tasks: Task[] = [
 
 const statuses = new Map<string, LiveAgentStatus>([["wP:pV", "working"]])
 
-async function renderBoard(width: number, singlePane: boolean) {
+async function renderBoard(
+  width: number,
+  singlePane: boolean,
+  extra?: {
+    lanes?: string[]
+    focusedLane?: string
+    focusedId?: string | null
+  },
+) {
   testSetup = await testRender(
     <Board
       tasks={tasks}
@@ -54,14 +62,15 @@ async function renderBoard(width: number, singlePane: boolean) {
       prefix="dev"
       defaultProject={project}
       singlePane={singlePane}
-      focusedLane="in_progress"
-      focusedId="dev-14"
+      focusedLane={extra?.focusedLane ?? "in_progress"}
+      focusedId={extra?.focusedId === undefined ? "dev-14" : extra.focusedId}
       selectedId={null}
       launchingIds={new Set()}
       agentStatuses={statuses}
       onFocusTask={() => {}}
       onDrop={() => {}}
       toast={null}
+      lanes={extra?.lanes}
     />,
     { width, height: 24 },
   )
@@ -129,3 +138,27 @@ test("board filter input is above the lane and hides non-matching cards", async 
   expect(frame).not.toContain("Unrelated")
   expect(frame).toContain("dev-14")
 })
+
+const extraLanes = ["backlog", "in_progress", "pr", "review", "address", "done"]
+
+test("board keeps full lane headings when there are more than four columns", async () => {
+  const frame = await renderBoard(80, false, { lanes: extraLanes })
+  expect(frame).toContain("IN PROGRESS")
+  expect(frame).toContain("BACKLOG")
+  expect(frame).toContain("REVIEW")
+  expect(frame).not.toContain("ADDRESS")
+  expect(frame).not.toContain("DONE")
+})
+
+test("board scrolls a focused off-screen lane into view", async () => {
+  const frame = await renderBoard(80, false, {
+    lanes: extraLanes,
+    focusedLane: "done",
+    focusedId: "dev-2",
+  })
+  expect(frame).toContain("DONE")
+  expect(frame).toContain("ADDRESS")
+  expect(frame).not.toContain("BACKLOG")
+  expect(frame).not.toContain("IN PROGRESS")
+})
+
