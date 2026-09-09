@@ -8,6 +8,7 @@ import {
   insertLaneId,
   isLaunchLane,
   loadLanePromptText,
+  looksLikePromptPath,
   parseLaneIds,
   slugLaneId,
 } from "./lanes.ts"
@@ -67,4 +68,19 @@ test("loadLanePromptText reads a file from prompts/ and keeps inline text", asyn
   expect(await loadLanePromptText(paths, "qa.md")).toBe("QA the change.")
   expect(await loadLanePromptText(paths, "prompts/qa.md")).toBe("QA the change.")
   expect(await loadLanePromptText(paths, "Check the tests.")).toBe("Check the tests.")
+})
+
+test("looksLikePromptPath ignores spaced prose even when it mentions files", () => {
+  expect(looksLikePromptPath("qa.md")).toBe(true)
+  expect(looksLikePromptPath("prompts/qa.md")).toBe(true)
+  expect(looksLikePromptPath("Update README.md")).toBe(false)
+  expect(looksLikePromptPath("Review src/lib")).toBe(false)
+})
+
+test("loadLanePromptText does not read a board-root file from spaced prose", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "htasks-lane-inline-"))
+  dirs.push(dir)
+  const paths = pathsFor(dir)
+  await Bun.write(join(dir, "README.md"), "do not use this\n")
+  expect(await loadLanePromptText(paths, "Update README.md")).toBe("Update README.md")
 })

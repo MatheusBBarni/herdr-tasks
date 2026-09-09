@@ -91,7 +91,7 @@ export function slugLaneId(name: string): string {
 
 export function looksLikePromptPath(value: string): boolean {
   const trimmed = value.trim()
-  if (!trimmed) return false
+  if (!trimmed || /\s/.test(trimmed)) return false
   if (trimmed.includes("/") || trimmed.includes("\\")) return true
   return /\.(md|txt)$/i.test(trimmed)
 }
