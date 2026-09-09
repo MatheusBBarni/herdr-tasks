@@ -150,6 +150,15 @@ test("board keeps full lane headings when there are more than four columns", asy
   expect(frame).not.toContain("DONE")
 })
 
+test("board grows six lanes across a wide terminal instead of wrapping", async () => {
+  const frame = await renderBoard(160, false, { lanes: extraLanes })
+  const heading = frame.split("\n").find((line) => line.includes("BACKLOG") && line.includes("DONE"))
+  expect(heading).toBeDefined()
+  expect(heading!.indexOf("DONE") - heading!.indexOf("BACKLOG")).toBeGreaterThan(110)
+  expect(frame).toContain("IN PROGRESS")
+  expect(frame).toContain("ADDRESS")
+})
+
 test("board scrolls a focused off-screen lane into view", async () => {
   const frame = await renderBoard(80, false, {
     lanes: extraLanes,

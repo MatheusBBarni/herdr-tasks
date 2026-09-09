@@ -6,7 +6,7 @@ import { defaultLaneName, isLaunchLane } from "../../lib/lanes.ts"
 import { truncateCells } from "../../lib/text.ts"
 import type { Lane, LaneDef, Task } from "../../lib/types.ts"
 import { CARD_GAP, laneRenderableId, revealTaskInLane } from "../scroll.ts"
-import { tuiColor, useTheme } from "../theme.ts"
+import { tuiColor, useTheme, verticalScrollbarOptions } from "../theme.ts"
 import { Card } from "./card.tsx"
 import { fieldInputColors } from "./form-kit.tsx"
 
@@ -126,7 +126,14 @@ export function Column(props: ColumnProps) {
         ) : null}
         <text fg={muted}>{"─".repeat(inner)}</text>
       </box>
-      <scrollbox ref={scrollRef} flexGrow={1} width="100%" height="100%" scrollY>
+      <scrollbox
+        ref={scrollRef}
+        flexGrow={1}
+        flexShrink={1}
+        width="100%"
+        scrollY
+        verticalScrollbarOptions={verticalScrollbarOptions(theme, color)}
+      >
         {props.tasks.length === 0 ? (
           showFilter ? (
             <text fg={muted}>no matches</text>

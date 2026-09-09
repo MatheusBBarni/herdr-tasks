@@ -8,12 +8,13 @@ import { LANES, type Lane, type LaneDef, type Task } from "../../lib/types.ts"
 import { filterTasks } from "../filter.ts"
 import { HINTS_NARROW, HINTS_WIDE, fitHints, hintsForTask } from "../hints.ts"
 import { revealLaneInBoard } from "../scroll.ts"
+import { tuiColor, useTheme, verticalScrollbarOptions } from "../theme.ts"
 import { Column } from "./column.tsx"
 import { HintBar } from "./hint-bar.tsx"
 import { ToastBar, type ToastInfo } from "./toast.tsx"
 import { TopBar, liveRunningCount } from "./top-bar.tsx"
 
-/** Matches 4 lanes at 80 cols. Extra lanes wrap to the next row. */
+/** Min lane width: 4 lanes at 80 cols. Extra lanes wrap; rows grow to fill. */
 export const MIN_LANE_WIDTH = 20
 const TOP_BAR_HEIGHT = 1
 const HINT_BAR_HEIGHT = 1
@@ -47,7 +48,15 @@ export function splitColumnWidths(total: number, count: number, min = MIN_LANE_W
   const n = Math.max(1, count)
   const minWidth = Math.max(1, min)
   if (n === 1) return [Math.max(1, total)]
-  return Array.from({ length: n }, () => minWidth)
+  if (n * minWidth > total) return Array.from({ length: n }, () => minWidth)
+  const base = Math.max(minWidth, Math.floor(total / n))
+  const widths = Array.from({ length: n }, () => base)
+  let rest = Math.max(0, total - base * n)
+  for (let i = 0; rest > 0 && i < widths.length; i++) {
+    widths[i]! += 1
+    rest--
+  }
+  return widths
 }
 
 export function lanesPerRow(total: number, min = MIN_LANE_WIDTH): number {
@@ -68,12 +77,15 @@ export function boardRowHeight(termHeight: number, hasToast: boolean): number {
 export function Board(props: BoardProps) {
   const scrollRef = useRef<ScrollBoxRenderable>(null)
   const { height } = useTerminalDimensions()
+  const color = tuiColor()
+  const theme = useTheme()
+  const scrollbar = verticalScrollbarOptions(theme, color)
   const laneOrder = props.lanes?.length ? props.lanes : LANES
   const lanes = props.singlePane ? [props.focusedLane] : [...laneOrder]
-  const colWidths = splitColumnWidths(props.width, lanes.length)
   const perRow = lanesPerRow(props.width)
   const rows = chunkLanes(lanes, perRow)
   const overflow = rows.length > 1
+  const widthsByRow = rows.map((row) => splitColumnWidths(props.width, row.length))
   const rowHeight = boardRowHeight(height, props.toast != null)
   const focusedIndex = lanes.indexOf(props.focusedLane)
   const rowIndex = focusedIndex < 0 ? 0 : Math.floor(focusedIndex / perRow)
@@ -117,14 +129,14 @@ export function Board(props: BoardProps) {
     }
   }, [overflow, focusedIndex, rowIndex, rowHeight, props.focusedLane, props.width])
 
-  const column = (lane: Lane, i: number) => (
+  const column = (lane: Lane, width: number) => (
     <Column
       key={lane}
       lane={lane}
       name={props.laneDefs?.[lane]?.name}
       tasks={byLane(lane)}
       totalCount={tasksInLane(props.tasks, lane).length}
-      width={colWidths[i] ?? MIN_LANE_WIDTH}
+      width={width}
       focused={props.focusedLane === lane}
       focusedId={props.focusedId}
       selectedId={props.selectedId}
@@ -159,8 +171,9 @@ export function Board(props: BoardProps) {
           height="100%"
           scrollY
           scrollX={false}
+          verticalScrollbarOptions={scrollbar}
         >
-          {rows.map((row) => (
+          {rows.map((row, rowIdx) => (
             <box
               key={row[0]}
               flexDirection="row"
@@ -168,13 +181,13 @@ export function Board(props: BoardProps) {
               height={rowHeight}
               flexShrink={0}
             >
-              {row.map((lane) => column(lane, lanes.indexOf(lane)))}
+              {row.map((lane, i) => column(lane, widthsByRow[rowIdx]?.[i] ?? MIN_LANE_WIDTH))}
             </box>
           ))}
         </scrollbox>
       ) : (
         <box flexDirection="row" flexGrow={1} flexShrink={1} width="100%">
-          {lanes.map((lane, i) => column(lane, i))}
+          {lanes.map((lane, i) => column(lane, widthsByRow[0]?.[i] ?? MIN_LANE_WIDTH))}
         </box>
       )}
       {props.toast ? <ToastBar toast={props.toast} /> : null}

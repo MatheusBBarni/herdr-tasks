@@ -76,6 +76,11 @@ test("lane scrolls so a focused card below the fold is visible", async () => {
   expect(frame).not.toContain("FIRST-CARD")
 })
 
+test("overflowing lane paints a vertical scrollbar thumb", async () => {
+  const frame = await renderColumn("dev-1")
+  expect(frame).toMatch(/[█▄▀]/)
+})
+
 test("empty lane has a heading and no empty placeholder", async () => {
   testSetup = await testRender(
     <box width={40} height={10}>
