@@ -62,24 +62,24 @@ export function revealLaneInBoard(
   scrollbox: ScrollBoxRenderable | null,
   lane: string | null,
   index: number,
-  laneWidth: number,
+  rowHeight: number,
 ): boolean {
-  if (!scrollbox || !lane || index < 0 || laneWidth <= 0) return false
-  const viewportWidth = scrollbox.viewport.width
-  if (viewportWidth <= 0) return false
+  if (!scrollbox || !lane || index < 0 || rowHeight <= 0) return false
+  const viewportHeight = scrollbox.viewport.height
+  if (viewportHeight <= 0) return false
 
   const next = scrollOffsetToReveal({
     index,
-    itemHeight: laneWidth,
+    itemHeight: rowHeight,
     gap: 0,
-    viewportHeight: viewportWidth,
-    currentOffset: scrollbox.scrollLeft,
+    viewportHeight,
+    currentOffset: scrollbox.scrollTop,
   })
-  if (next !== scrollbox.scrollLeft) scrollbox.scrollLeft = next
+  if (next !== scrollbox.scrollTop) scrollbox.scrollTop = next
 
   const childId = laneRenderableId(lane)
   const child = scrollbox.content.findDescendantById(childId)
-  if (child && child.width > 0) {
+  if (child && child.height > 0) {
     scrollbox.scrollChildIntoView(childId)
   }
   return true

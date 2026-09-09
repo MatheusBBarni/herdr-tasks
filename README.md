@@ -282,7 +282,7 @@ Leaving `in_progress` does not close that layout.
 `htasks board` is a full-screen session (alternate screen).
 Usable at 80×24.
 Below 80 columns the board shows one lane at a time.
-Lanes keep a minimum width of 20 columns. Extra lanes stay off-screen until you move into them with h/l or scroll.
+Lanes are 20 columns wide. Extra lanes wrap to the next row and scroll vertically into view with h/l.
 Below 40×10 it says the terminal is too small.
 
 | Key | Action |

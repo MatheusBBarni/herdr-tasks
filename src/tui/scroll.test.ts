@@ -47,16 +47,16 @@ test("scrollOffsetToReveal scrolls up to the item top", () => {
   ).toBe(0)
 })
 
-test("scrollOffsetToReveal pans a lane that sits past the right edge", () => {
+test("scrollOffsetToReveal scrolls a wrapped lane row into view", () => {
   expect(
     scrollOffsetToReveal({
-      index: 5,
-      itemHeight: 20,
+      index: 1,
+      itemHeight: 22,
       gap: 0,
-      viewportHeight: 80,
+      viewportHeight: 22,
       currentOffset: 0,
     }),
-  ).toBe(40)
+  ).toBe(22)
 })
 
 
