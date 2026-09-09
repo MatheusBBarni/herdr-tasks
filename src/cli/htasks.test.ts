@@ -10,12 +10,13 @@ afterEach(async () => {
   await Promise.all(dirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true })))
 })
 
-async function run(cwd: string, args: string[]) {
+async function run(cwd: string, args: string[], env?: Record<string, string>) {
   const proc = Bun.spawn(["bun", cli, ...args], {
     cwd,
     stdout: "pipe",
     stderr: "pipe",
     stdin: "ignore",
+    env: env ? { ...process.env, ...env } : undefined,
   })
   const [stdout, stderr, code] = await Promise.all([
     new Response(proc.stdout).text(),
@@ -248,4 +249,44 @@ test("cli create lane adds a custom column", async () => {
   const dup = await run(dir, ["create", "lane", "--name", "QA"])
   expect(dup.code).not.toBe(0)
   expect(dup.stderr).toContain("already exists")
+})
+
+test("cli list colors launch lanes distinct from backlog and done", async () => {
+  const dir = await tempDir()
+  expect((await run(dir, ["init", "--prefix", "dev", "--agent", "claude", "--project", dir])).code).toBe(0)
+  expect((await run(dir, ["create", "lane", "--name", "QA", "--prompt", "Check the tests."])).code).toBe(0)
+  expect((await run(dir, ["create", "lane", "--name", "Parking"])).code).toBe(0)
+  expect((await run(dir, ["create", "--title", "Backlog card", "--status", "backlog"])).code).toBe(0)
+  expect((await run(dir, ["create", "--title", "QA card", "--status", "qa"])).code).toBe(0)
+  expect((await run(dir, ["create", "--title", "Parked card", "--status", "parking"])).code).toBe(0)
+  expect((await run(dir, ["create", "--title", "Done card", "--status", "done"])).code).toBe(0)
+
+  const colorEnv = { FORCE_COLOR: "1", NO_COLOR: "", TERM: "xterm-256color" }
+  const colored = await run(dir, ["list"], colorEnv)
+  expect(colored.code).toBe(0)
+  expect(colored.stdout).toContain("\x1b[2mbacklog\x1b[0m")
+  expect(colored.stdout).toContain("\x1b[33mqa\x1b[0m")
+  expect(colored.stdout).toContain("\x1b[2mparking\x1b[0m")
+  expect(colored.stdout).toContain("\x1b[32mdone\x1b[0m")
+
+  const plain = await run(dir, ["list"], { NO_COLOR: "1" })
+  expect(plain.code).toBe(0)
+  expect(plain.stdout).not.toContain("\x1b")
+  expect(plain.stdout).toContain("dev-1")
+  expect(plain.stdout).toContain("dev-2")
+  expect(plain.stdout).toMatch(/\bqa\b/)
+  expect(plain.stdout).toMatch(/\bbacklog\b/)
+  expect(plain.stdout).toMatch(/\bparking\b/)
+  expect(plain.stdout).toMatch(/\bdone\b/)
+
+  const json = await run(dir, ["list", "--json"], colorEnv)
+  expect(json.code).toBe(0)
+  expect(json.stdout).not.toContain("\x1b")
+  const tasks = JSON.parse(json.stdout) as Array<{ id: string; status: string }>
+  expect(tasks.map((task) => [task.id, task.status])).toEqual([
+    ["dev-1", "backlog"],
+    ["dev-2", "qa"],
+    ["dev-3", "parking"],
+    ["dev-4", "done"],
+  ])
 })
