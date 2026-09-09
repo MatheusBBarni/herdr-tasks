@@ -20,7 +20,8 @@ import {
 } from "../lib/store.ts"
 import { formatTable } from "../lib/table.ts"
 import { basename } from "../lib/text.ts"
-import type { Task } from "../lib/types.ts"
+import { isLaunchLane } from "../lib/lanes.ts"
+import type { LaneDef, Task } from "../lib/types.ts"
 import pkg from "../../package.json" with { type: "json" }
 
 
@@ -52,7 +53,14 @@ function taskJson(task: Task) {
   }
 }
 
-function printTaskTable(tasks: Task[]): void {
+function statusPaintCode(status: string, defs?: Record<string, LaneDef>) {
+  if (status === "done") return "green" as const
+  if (status === "review") return "cyan" as const
+  if (isLaunchLane(status, defs)) return "yellow" as const
+  return "dim" as const
+}
+
+function printTaskTable(tasks: Task[], laneDefs?: Record<string, LaneDef>): void {
   if (tasks.length === 0) {
     writeOut("No tasks.")
     return
@@ -60,17 +68,7 @@ function printTaskTable(tasks: Task[]): void {
   const color = colorEnabled(process.stdout)
   const rows = tasks.map((task) => ({
     id: task.id,
-    status: paint(
-      color,
-      task.status === "done"
-        ? "green"
-        : task.status === "in_progress"
-          ? "yellow"
-          : task.status === "review"
-            ? "cyan"
-            : "dim",
-      task.status,
-    ),
+    status: paint(color, statusPaintCode(task.status, laneDefs), task.status),
     type: task.type,
     agent: task.agent,
     project: basename(task.project),
@@ -146,9 +144,9 @@ Examples:
     .option("--json", "JSON on stdout")
     .action(async (opts: { status?: string; json?: boolean }) => {
       const paths = await requireBoardRoot()
-      let tasks = await listTasks(paths)
+      const [config, listed] = await Promise.all([loadConfig(paths), listTasks(paths)])
+      let tasks = listed
       if (opts.status) {
-        const config = await loadConfig(paths)
         const lane = requireLane(opts.status, config.lanes)
         tasks = tasks.filter((task) => task.status === lane)
       }
@@ -156,7 +154,7 @@ Examples:
         writeOut(JSON.stringify(tasks.map(taskJson), null, 2))
         return
       }
-      printTaskTable(tasks)
+      printTaskTable(tasks, config.lane_defs)
     })
 
   program
