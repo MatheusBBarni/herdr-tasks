@@ -76,6 +76,41 @@ test("lane scrolls so a focused card below the fold is visible", async () => {
   expect(frame).not.toContain("FIRST-CARD")
 })
 
+test("overflowing lane paints a vertical scrollbar thumb on the right edge", async () => {
+  const frame = await renderColumn("dev-1")
+  expect(frame).toMatch(/[█▄▀]│/)
+})
+
+test("card titles stay left of the reserved scrollbar column", async () => {
+  const long = Array.from({ length: 12 }, (_, i) => task(`dev-${i + 1}`, "X".repeat(40)))
+  testSetup = await testRender(
+    <box width={40} height={10}>
+      <Column
+        lane="backlog"
+        tasks={long}
+        width={40}
+        focused
+        focusedId="dev-1"
+        selectedId={null}
+        launchingIds={new Set()}
+        agentStatuses={new Map()}
+        defaultProject="/Users/matheusbbarni/projects/herdr-tasks"
+        onFocusTask={() => {}}
+        onDrop={() => {}}
+      />
+    </box>,
+    { width: 40, height: 10 },
+  )
+  await testSetup.renderOnce()
+  await act(async () => {
+    await Bun.sleep(50)
+  })
+  await testSetup.renderOnce()
+  const frame = testSetup.captureCharFrame()
+  expect(frame).toMatch(/[█▄▀]│/)
+  expect(frame).not.toMatch(/X[█▄▀│]/)
+})
+
 test("empty lane has a heading and no empty placeholder", async () => {
   testSetup = await testRender(
     <box width={40} height={10}>
@@ -103,6 +138,7 @@ test("empty lane has a heading and no empty placeholder", async () => {
   const frame = testSetup.captureCharFrame()
   expect(frame).toContain("BACKLOG · 0")
   expect(frame).not.toContain("empty")
+  expect(frame).not.toMatch(/[█▄▀]/)
 })
 
 test("lane stacks cards without a blank row between them", async () => {

@@ -23,6 +23,23 @@ export function useTheme(): ThemePalette {
   return useContext(ThemeContext)
 }
 
+export const VERTICAL_SCROLLBAR_WIDTH = 1
+
+export function verticalScrollbarOptions(theme: ThemePalette, color: boolean) {
+  return {
+    width: VERTICAL_SCROLLBAR_WIDTH,
+    flexShrink: 0,
+    ...(color
+      ? {
+          trackOptions: {
+            foregroundColor: theme.muted,
+            backgroundColor: theme.cardBg,
+          },
+        }
+      : {}),
+  }
+}
+
 export function laneColor(lane: Lane, colors: ThemePalette = THEMES[DEFAULT_THEME]): string {
   if (lane === "in_progress") return colors.progress
   if (lane === "review") return colors.review
