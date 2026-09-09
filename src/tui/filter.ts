@@ -1,7 +1,7 @@
 import { basename } from "../lib/text.ts"
 import type { Task } from "../lib/types.ts"
 
-export function taskSearchText(task: Task): string {
+function taskSearchText(task: Task): string {
   return [
     task.id,
     task.title,

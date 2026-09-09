@@ -78,7 +78,6 @@ export function App(props: AppProps) {
   const filterQueriesRef = useRef(filterQueries)
   filterQueriesRef.current = filterQueries
 
-
   const showToast = useCallback((message: string, kind: ToastKind = "ok") => {
     setToast({ message, kind })
   }, [])
