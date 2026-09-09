@@ -18,7 +18,7 @@ test("scrollOffsetToReveal keeps an on-screen item put", () => {
 })
 
 test("scrollOffsetToReveal scrolls down just enough to show the item", () => {
-  // index 5 → top 30, bottom 35; viewport 10 → offset 25
+  // index 5 → top 25, bottom 30; viewport 10 → offset 20
   expect(
     scrollOffsetToReveal({
       index: 5,
@@ -27,7 +27,7 @@ test("scrollOffsetToReveal scrolls down just enough to show the item", () => {
       viewportHeight: 10,
       currentOffset: 0,
     }),
-  ).toBe(25)
+  ).toBe(20)
 })
 
 test("scrollOffsetToReveal scrolls up to the item top", () => {

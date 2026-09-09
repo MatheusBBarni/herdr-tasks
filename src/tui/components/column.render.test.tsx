@@ -104,3 +104,98 @@ test("empty lane has a heading and no empty placeholder", async () => {
   expect(frame).toContain("BACKLOG · 0")
   expect(frame).not.toContain("empty")
 })
+
+test("lane stacks cards without a blank row between them", async () => {
+  testSetup = await testRender(
+    <box width={28} height={20}>
+      <Column
+        lane="done"
+        tasks={[task("dev-1", "Update README"), task("dev-10", "Update skill")]}
+        width={28}
+        focused
+        focusedId="dev-1"
+        selectedId={null}
+        launchingIds={new Set()}
+        agentStatuses={new Map()}
+        defaultProject="/Users/matheusbbarni/projects/herdr-tasks"
+        onFocusTask={() => {}}
+        onDrop={() => {}}
+      />
+    </box>,
+    { width: 28, height: 20 },
+  )
+  await testSetup.renderOnce()
+  await act(async () => {
+    await Bun.sleep(50)
+  })
+  await testSetup.renderOnce()
+  const frame = testSetup.captureCharFrame()
+  expect(frame).toContain("dev-1")
+  expect(frame).toContain("dev-10")
+  expect(frame).toMatch(/└─+┘│\n│┌─+┐/)
+})
+
+test("filter input sits above the cards and hides non-matches", async () => {
+  const visible = [task("dev-1", "FIRST-CARD")]
+  testSetup = await testRender(
+    <box width={40} height={12}>
+      <Column
+        lane="backlog"
+        tasks={visible}
+        totalCount={2}
+        width={40}
+        focused
+        focusedId="dev-1"
+        selectedId={null}
+        launchingIds={new Set()}
+        agentStatuses={new Map()}
+        defaultProject="/Users/matheusbbarni/projects/herdr-tasks"
+        filterQuery="FIRST"
+        onFocusTask={() => {}}
+        onDrop={() => {}}
+      />
+    </box>,
+    { width: 40, height: 12 },
+  )
+  await testSetup.renderOnce()
+  await act(async () => {
+    await Bun.sleep(80)
+  })
+  await testSetup.renderOnce()
+  const frame = testSetup.captureCharFrame()
+  expect(frame).toContain("BACKLOG · 1/2")
+  expect(frame).toContain("FIRST")
+  expect(frame).toContain("FIRST-CARD")
+  expect(frame).not.toContain("LAST-CARD")
+})
+
+test("empty filter results show no matches", async () => {
+  testSetup = await testRender(
+    <box width={40} height={10}>
+      <Column
+        lane="backlog"
+        tasks={[]}
+        totalCount={3}
+        width={40}
+        focused
+        focusedId={null}
+        selectedId={null}
+        launchingIds={new Set()}
+        agentStatuses={new Map()}
+        defaultProject="/Users/matheusbbarni/projects/herdr-tasks"
+        filterQuery="zzz"
+        onFocusTask={() => {}}
+        onDrop={() => {}}
+      />
+    </box>,
+    { width: 40, height: 10 },
+  )
+  await testSetup.renderOnce()
+  await act(async () => {
+    await Bun.sleep(80)
+  })
+  await testSetup.renderOnce()
+  const frame = testSetup.captureCharFrame()
+  expect(frame).toContain("BACKLOG · 0/3")
+  expect(frame).toContain("no matches")
+})

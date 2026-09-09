@@ -2,8 +2,8 @@ import type { ScrollBoxRenderable } from "@opentui/core"
 
 /** Border + 3 content rows. Keep in sync with `Card`. */
 export const CARD_HEIGHT = 5
-/** `gap` on the lane’s card stack. */
-export const CARD_GAP = 1
+/** Cards sit flush; borders already separate them. Keep in sync with the lane stack. */
+export const CARD_GAP = 0
 
 export function cardRenderableId(taskId: string): string {
   return `card:${taskId}`

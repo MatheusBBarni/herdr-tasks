@@ -88,7 +88,7 @@ command = "htasks.open-board"
 description = "open htasks board"
 ```
 
-`q` / Ctrl+C in the overlay calls `renderer.destroy()` and restores the previous pane.
+`q` in the overlay calls `renderer.destroy()` and restores the previous pane.
 Agents keep using `htasks move …`; they should not call `herdr plugin action invoke` for lane changes.
 
 
@@ -265,7 +265,8 @@ Below 40×10 it says the terminal is too small.
 | j/k, arrows | Focus card, or reorder the selected card |
 | h/l, arrows | Change column, or move the selected card |
 | space | Select |
-| esc | Clear selection / close overlay |
+| f | Filter cards in the focused lane (title, id, description, …) |
+| esc | Clear filter, selection, or close overlay |
 | n | New task |
 | c | Close the Herdr pane/tab/workspace for a done card |
 | e | Edit (not done) |
@@ -273,7 +274,9 @@ Below 40×10 it says the terminal is too small.
 | enter | Preview |
 | o | Focus the Herdr pane/tab/workspace for an in-progress or review card |
 | ? | Help |
-| q / Ctrl+C | Quit (`renderer.destroy()`) |
+| q | Quit (`renderer.destroy()`) |
+| Ctrl+C | Copy selection, focused field, or card |
+| Ctrl+V | Paste into a focused field |
 
 Create/edit form: **Tab** moves fields.
 **Enter** saves, except in description where it inserts a newline.

@@ -378,7 +378,7 @@ export function TaskForm(props: TaskFormProps) {
       >
         <input
           value={title}
-          onChange={(value) => {
+          onInput={(value) => {
             titleRef.current = value
             setTitle(value)
             clearError("title")
@@ -519,7 +519,7 @@ export function TaskForm(props: TaskFormProps) {
             ) : (
               <input
                 value={project}
-                onChange={(value) => {
+                onInput={(value) => {
                   projectRef.current = value
                   setProject(value)
                   clearError("project")

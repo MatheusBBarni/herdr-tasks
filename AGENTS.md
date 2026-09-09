@@ -80,8 +80,8 @@ Authoritative APIs: the **opentui** skill. Do not invent components, hooks, or H
 
 ### Lifecycle
 
-- **Never `process.exit()` from the TUI.** Quit with `renderer.destroy()` (`q` / Ctrl+C). That restores alternate screen, cursor, and raw mode.
-- OpenTUI already cleans up SIGINT/SIGTERM/etc. Custom signals: `exitOnCtrlC: false` and still call `renderer.destroy()`.
+- **Never `process.exit()` from the TUI.** Quit with `renderer.destroy()` (`q` only). That restores alternate screen, cursor, and raw mode.
+- OpenTUI already cleans up SIGINT/SIGTERM/etc. Set `exitOnCtrlC: false` so Ctrl+C copies; still call `renderer.destroy()` on `q`.
 - Do not print diagnostics into the live UI. Use the renderer console overlay or a file.
 
 ### Input
@@ -216,7 +216,7 @@ Ship `skills/htasks/SKILL.md` and copy it to `.herdr-tasks/skills/htasks/` on `i
 - Columns: backlog / in_progress / review / done.
 - Card: id, title, type, agent key, project basename.
 - Space select; Left/Right or h/l move; Up/Down or j/k reorder selected; Esc clear; mouse click + drag if possible.
-- n create, c close Herdr layout (done), e edit, s settings, Enter preview, o focus Herdr layout (in_progress / review), ? help, q / Ctrl+C quit (`renderer.destroy()`).
+- n create, c close Herdr layout (done), e edit, s settings, Enter preview, o focus Herdr layout (in_progress / review), ? help, q quit (`renderer.destroy()`), Ctrl+C copy, Ctrl+V paste.
 - Form: Tab fields; Enter submit except in description (newline) and blockers (toggle); Ctrl+Enter always submits; Esc cancel; title required; project path must exist (select from `[projects.*]` when present); agent must be a config key; type is a `task_types` key or none; effort is `low`/`medium`/`high`/`xhigh`/`max` or none and is applied when starting the agent; worktree is Yes/No (default No); blockers is a select of other tasks.
 - Default project to cwd when inside a repo; default agent to `default_agent`; default type to `default_type`.
 

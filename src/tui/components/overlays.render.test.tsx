@@ -2,7 +2,7 @@ import { afterEach, expect, test } from "bun:test"
 import { testRender } from "@opentui/react/test-utils"
 import { act } from "react"
 import type { Task } from "../../lib/types.ts"
-import { PreviewOverlay } from "./overlays.tsx"
+import { HelpOverlay, PreviewOverlay } from "./overlays.tsx"
 
 let testSetup: Awaited<ReturnType<typeof testRender>> | undefined
 
@@ -52,4 +52,15 @@ test("preview shows an image as a URL link, not a preview", async () => {
   expect(frame).toContain("https://ex.com/a.png")
   expect(frame).toContain("login")
   expect(frame).not.toContain("![login]")
+})
+
+test("help lists q to quit and Ctrl+C / Ctrl+V for copy paste", async () => {
+  const frame = await renderPreview(
+    <HelpOverlay behavior="workspace" onClose={() => {}} />,
+    { width: 80, height: 24 },
+  )
+  expect(frame).toContain("Ctrl+C / Ctrl+V copy / paste")
+  expect(frame).toContain("q               quit")
+  expect(frame).toContain("f               filter lane")
+  expect(frame).not.toContain("q / Ctrl+C")
 })

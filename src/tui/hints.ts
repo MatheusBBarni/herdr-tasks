@@ -10,6 +10,7 @@ export const HINTS_WIDE: Hint[] = [
   { action: "select", key: "space" },
   { action: "move", key: "h/l" },
   { action: "new", key: "n" },
+  { action: "filter", key: "f" },
   { action: "edit", key: "e" },
   { action: "preview", key: "enter" },
   { action: "help", key: "?" },
@@ -23,6 +24,7 @@ export const HINTS_NARROW: Hint[] = [
   { action: "card", key: "j/k" },
   { action: "select", key: "space" },
   { action: "new", key: "n" },
+  { action: "filter", key: "f" },
   { action: "edit", key: "e" },
   { action: "preview", key: "enter" },
   { action: "help", key: "?" },
@@ -68,7 +70,7 @@ export function fitHints(hints: readonly Hint[], width: number): Hint[] {
   const items = [...hints]
   const total = (list: Hint[]) =>
     list.reduce((sum, hint, i) => sum + hintWidth(hint) + (i > 0 ? 1 : 0), 0)
-  for (const action of ["help", "preview", "open", "close", "edit", "card", "set", "order"]) {
+  for (const action of ["help", "preview", "open", "filter", "close", "edit", "card", "set", "order"]) {
     if (total(items) <= width) break
     const idx = items.findIndex((hint) => hint.action === action)
     if (idx >= 0) items.splice(idx, 1)
