@@ -290,7 +290,7 @@ Below 40×10 it says the terminal is too small.
 | j/k, arrows | Focus card, or reorder the selected card |
 | h/l, arrows | Change column, or move the selected card |
 | space | Select |
-| f | Filter cards in the focused lane (title, id, description, …) |
+| f | Filter the focused lane (j/k and arrows still move among matches) |
 | esc | Clear filter, selection, or close overlay |
 | n | New task |
 | c | Close the Herdr pane/tab/workspace for a done card |
