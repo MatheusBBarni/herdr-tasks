@@ -39,7 +39,7 @@ export function HelpOverlay(props: OverlayProps & { behavior: HerdrBehavior }) {
       <text>h/l or arrows   change column (or move selected)</text>
       <text>space           select card</text>
       <text>esc             clear filter / selection / close</text>
-      <text>f               filter lane</text>
+      <text>f               filter lane (arrows move matches)</text>
       <text>n               new task</text>
       <text>{`c               close herdr ${noun} (done)`}</text>
       <text>e               edit (not done)</text>

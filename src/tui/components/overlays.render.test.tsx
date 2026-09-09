@@ -61,6 +61,6 @@ test("help lists q to quit and Ctrl+C / Ctrl+V for copy paste", async () => {
   )
   expect(frame).toContain("Ctrl+C / Ctrl+V copy / paste")
   expect(frame).toContain("q               quit")
-  expect(frame).toContain("f               filter lane")
+  expect(frame).toContain("f               filter lane (arrows move matches)")
   expect(frame).not.toContain("q / Ctrl+C")
 })
