@@ -17,7 +17,7 @@ import { resolveProjectPath, type BoardPaths } from "./root.ts"
 import { formatBlockedError } from "./blockers.ts"
 import { nextOrder } from "./order.ts"
 import { getTask, listTasks, requireLane, saveTask, writeTask } from "./store.ts"
-import { EMPTY_HERDR, type Lane, type LaneDef, type Task } from "./types.ts"
+import { EMPTY_HERDR, type Config, type Lane, type LaneDef, type Task } from "./types.ts"
 
 export type MoveResult = {
   task: Task
@@ -92,21 +92,22 @@ export async function moveTaskDetailed(
   }
 }
 
-type LaunchOpts = { runner?: HerdrRunner; config?: Awaited<ReturnType<typeof loadConfig>> }
+type LaunchOpts = { runner?: HerdrRunner; config?: Config }
 
 async function buildReviewPrompt(
   paths: BoardPaths,
-  config: Awaited<ReturnType<typeof loadConfig>>,
+  config: Config,
   taskId: string,
 ): Promise<string> {
+  const next = resolvedLaneDef(config, "review").next_step.trim() || "done"
   const text = reviewPrompt({
     skill: await loadReviewSkillText(paths.boardRoot, config.review.skill),
     prompt: await loadReviewPromptOrDefault(paths, config.review.prompt),
-  }).replaceAll("<id>", taskId)
-  if (!text) {
+  })
+  if (!text.trim()) {
     fail("Review prompt is empty. Set [review] prompt or add .herdr-tasks/prompts/review.md.")
   }
-  return text
+  return buildCustomLanePrompt(text, taskId, next)
 }
 
 async function completeLaunch(

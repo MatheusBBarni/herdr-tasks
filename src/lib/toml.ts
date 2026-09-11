@@ -85,6 +85,7 @@ bin = "herdr"
 behavior = "workspace"
 
 # Review lane: after in_progress, move here. Reuses the live pane; empty agent uses the task's agent.
+# Default prompt: review, fix, commit, push, open/merge PR, delete branch, then htasks move <id> done.
 # skill = skill name (thermo-nuclear-code-quality-review) or path to SKILL.md
 # prompt = extra prompt file (absolute or relative to the board root); empty uses prompts/review.md
 [review]

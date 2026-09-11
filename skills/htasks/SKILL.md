@@ -27,9 +27,10 @@ Lanes come from config (`backlog`, `in_progress`, `review`, `done`, plus any cus
 
 ## Rules
 
+- The task markdown body is the spec. Implement that. Do not wait for a human to re-paste it.
 - Start work with `htasks move <id> in_progress` (no-op if a pane is already attached).
-- When implementation is complete: `htasks move <id> review` (or the in_progress lane's `next_step`).
-- After a prompted lane finishes: `htasks move <id> <next_step>` (review's default is `done`).
+- When implementation is complete: `htasks move <id> review` (or the in_progress lane's `next_step`). That sends the review prompt.
+- After review: address findings, commit, push, open and merge the PR, delete the branch (and worktree if used), then `htasks move <id> done` (or the review lane's `next_step`).
 - Do not create extra tasks unless asked.
 - Do not kill Herdr panes.
 - Do not guess agent binaries; unknown `agent` keys are errors.

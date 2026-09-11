@@ -334,25 +334,31 @@ The board watches `.herdr-tasks/tasks`, so a CLI `move` shows up without a resta
 
 `htasks init` copies `skills/htasks/SKILL.md` into `.herdr-tasks/skills/htasks/` and a default review prompt into `.herdr-tasks/prompts/review.md`.
 Agents should use only `htasks` (never hand-edit task markdown).
-After implementation: `htasks move <id> review`.
-After review: `htasks move <id> done`.
+Put the work in the task description, then `htasks move <id> in_progress`.
+The agent implements that spec and must `htasks move <id> review` itself.
+Review then lands the change: address findings, commit, push, open and merge the PR, delete the branch, `htasks move <id> done`.
 
 The first prompt sent into Herdr looks like:
 
 ```text
-You are working task <id> in repo <project>.
+<task markdown body>
+
+Task <id> in <project>.
 Read <abs-path-to-md>.
 Follow <abs-path-to-SKILL.md>.
-When complete: `htasks move <id> review`.
+The task body is the spec. Implement it fully. Do not add unrelated work.
+When complete, run `htasks move <id> review` yourself. That move sends the next prompt. Do not wait for a human.
 `herdr` is the multiplexer already running this <tab|workspace|pane>. `htasks` is the task board CLI.
 ```
 
 ## Review lane
 
-After In Progress, move the card to **Review**.
+After In Progress, the agent (or you) moves the card to **Review**.
 That reuses the existing Herdr pane (it does not open another workspace/tab/pane) and sends the `[review] skill` file body (if set) then the `[review] prompt` file.
 If the card has no live pane, it creates a layout like In Progress.
 Empty `[review] prompt` uses the default `.herdr-tasks/prompts/review.md`.
+
+The default review prompt is a land runbook: review, fix findings, commit, push, open a PR, merge it, delete the branch, then `htasks move <id> done` (or the review lane's `next_step`).
 
 Configure it in `.herdr-tasks/config.toml`:
 

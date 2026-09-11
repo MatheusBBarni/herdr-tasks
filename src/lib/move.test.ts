@@ -357,6 +357,35 @@ test("in_progress first prompt uses the lane next_step", async () => {
   expect(prompt?.[3]).toContain(`htasks move ${task.id} qa`)
 })
 
+test("in_progress first prompt inlines the task description", async () => {
+  const { dir, paths } = await tempBoard()
+  const task = await createTask(
+    paths,
+    { title: "Add login", description: "Wire the existing auth helper.", project: dir },
+    dir,
+  )
+  const { runner, calls } = mockHerdr()
+  await moveTask(paths, task.id, "in_progress", { runner })
+  const prompt = calls.find((args) => args[0] === "agent" && args[1] === "prompt")
+  expect(prompt?.[3]).toContain("Wire the existing auth helper.")
+  expect(prompt?.[3]).toContain("The task body is the spec")
+  expect(prompt?.[3]).toContain(`htasks move ${task.id} review`)
+})
+
+test("review prompt uses the review lane next_step", async () => {
+  const { paths, task } = await tempBoard()
+  const config = await loadConfig(paths)
+  config.lanes = ["backlog", "in_progress", "review", "qa", "done"]
+  config.lane_defs.review = { name: "Review", prompt: "", next_step: "qa" }
+  config.lane_defs.qa = { name: "QA", prompt: "Check.", next_step: "done" }
+  await saveConfig(paths, config)
+  const { runner, calls } = mockHerdr()
+  await moveTask(paths, task.id, "review", { runner })
+  const prompt = calls.find((args) => args[0] === "agent" && args[1] === "prompt")
+  expect(prompt?.[3]).toContain(`htasks move ${task.id} qa`)
+  expect(prompt?.[3]).not.toContain(`htasks move ${task.id} done`)
+})
+
 test("move review launches herdr and sends the review prompt", async () => {
   const { paths, task } = await tempBoard()
   const { runner, calls } = mockHerdr()
@@ -364,9 +393,12 @@ test("move review launches herdr and sends the review prompt", async () => {
   expect(moved.status).toBe("review")
   expect(moved.herdr.pane_id).toBe("w1:p1")
   const prompt = calls.find((args) => args[0] === "agent" && args[1] === "prompt")
-  expect(prompt?.[3]).toBe(
-    `Review the implementation against the task file.\n\n- Requirements in the task are actually done\n- Tests cover the change (add them if they are missing)\n- No regressions, debug leftovers, or unrelated refactors\n- The code matches surrounding style and naming\n\nStay in scope. If the work is not ready, say what is missing and do not move the task.\nWhen the review passes: \`htasks move ${task.id} done\`.`,
-  )
+  expect(prompt?.[3]).toContain("Review the implementation against the task")
+  expect(prompt?.[3]).toContain("Commit and push")
+  expect(prompt?.[3]).toContain("Open a pull request")
+  expect(prompt?.[3]).toContain("Merge and close that PR")
+  expect(prompt?.[3]).toContain("Delete the local branch")
+  expect(prompt?.[3]).toContain(`htasks move ${task.id} done`)
 })
 
 test("move review from in_progress reuses the live pane and sends the default review prompt", async () => {
@@ -388,7 +420,7 @@ test("move review from in_progress reuses the live pane and sends the default re
   expect(calls.some((args) => args[0] === "pane" && args[1] === "run")).toBe(false)
   const prompt = calls.find((args) => args[0] === "agent" && args[1] === "prompt")
   expect(prompt?.[2]).toBe("w1:p2")
-  expect(prompt?.[3]).toContain("Review the implementation against the task file.")
+  expect(prompt?.[3]).toContain("Review the implementation against the task")
   expect(prompt?.[3]).toContain(`htasks move ${first.id} done`)
   expect(prompt?.[3]).not.toContain("You are reviewing task")
 })
@@ -402,7 +434,7 @@ test("move review with empty [review] prompt still sends default review.md", asy
   await moveTask(paths, task.id, "review", { runner })
   expect(calls.some((args) => args[0] === "workspace" && args[1] === "create")).toBe(true)
   const prompt = calls.find((args) => args[0] === "agent" && args[1] === "prompt")
-  expect(prompt?.[3]).toContain("Review the implementation against the task file.")
+  expect(prompt?.[3]).toContain("Review the implementation against the task")
 })
 
 test("move review is idempotent when already in review with a live pane", async () => {
@@ -431,7 +463,9 @@ test("move review uses [review] agent skill and prompt", async () => {
     true,
   )
   const prompt = calls.find((args) => args[0] === "agent" && args[1] === "prompt")
-  expect(prompt?.[3]).toBe("# review\n\nBe picky about names.")
+  expect(prompt?.[3]).toBe(
+    `# review\n\nBe picky about names.\nWhen complete: \`htasks move ${task.id} done\`.`,
+  )
   expect(prompt?.[3]).not.toContain(skillPath)
 })
 
@@ -478,7 +512,7 @@ test("move review resolves [review] skill by name", async () => {
   await moveTask(paths, task.id, "review", { runner })
   const prompt = calls.find((args) => args[0] === "agent" && args[1] === "prompt")
   expect(prompt?.[3]?.startsWith("# thermo\n\n")).toBe(true)
-  expect(prompt?.[3]).toContain("Review the implementation against the task file.")
+  expect(prompt?.[3]).toContain("Review the implementation against the task")
   expect(prompt?.[3]).not.toContain("thermo-nuclear-code-quality-review\n")
   expect(prompt?.[3]).not.toContain(skillFile)
 })

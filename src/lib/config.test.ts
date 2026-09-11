@@ -307,7 +307,7 @@ test("loadReviewPromptOrDefault falls back to the packaged prompt when empty", a
   dirs.push(dir)
   const paths = pathsFor(dir)
   const text = await loadReviewPromptOrDefault(paths, "")
-  expect(text).toContain("Review the implementation against the task file.")
+  expect(text).toContain("Review the implementation against the task")
 })
 
 test("loadReviewPromptOrDefault uses the board review.md when prompt is empty", async () => {

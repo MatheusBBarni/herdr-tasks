@@ -167,8 +167,19 @@ test("first prompt names htasks and herdr", () => {
   expect(text).toContain("htasks move dev-1 review")
   expect(text).toContain("Read /repo/.herdr-tasks/tasks/dev-1.md")
   expect(text).toContain("this workspace")
+  expect(text).toContain("Do not wait for a human")
   expect(firstPrompt(sample, "/tmp/SKILL.md", "tab")).toContain("this tab")
   expect(firstPrompt(sample, "/tmp/SKILL.md", "pane")).toContain("this pane")
+})
+
+test("first prompt inlines the task body as the spec", () => {
+  const text = firstPrompt(
+    { ...sample, body: "# Add login\n\nWire the existing auth helper." },
+    "/repo/.herdr-tasks/skills/htasks/SKILL.md",
+  )
+  expect(text.startsWith("# Add login\n\nWire the existing auth helper.")).toBe(true)
+  expect(text).toContain("The task body is the spec")
+  expect(text).toContain("htasks move dev-1 review")
 })
 
 test("review prompt is the skill text then the prompt file", () => {

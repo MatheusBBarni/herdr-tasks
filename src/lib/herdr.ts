@@ -618,13 +618,17 @@ export function firstPrompt(
 ): string {
   const place = layoutNoun(behavior)
   const next = nextStep.trim() || "review"
-  return [
-    `You are working task ${task.id} in repo ${task.project}.`,
+  const spec = task.body.trim()
+  const footer = [
+    `Task ${task.id} in ${task.project}.`,
     `Read ${task.filePath}.`,
     `Follow ${skillPath}.`,
-    `When complete: \`htasks move ${task.id} ${next}\`.`,
+    "The task body is the spec. Implement it fully. Do not add unrelated work.",
+    `When complete, run \`htasks move ${task.id} ${next}\` yourself. That move sends the next prompt. Do not wait for a human.`,
     "`herdr` is the multiplexer already running this " + place + ". `htasks` is the task board CLI.",
-  ].join("\n")
+  ]
+  if (!spec) return footer.join("\n")
+  return `${spec}\n\n${footer.join("\n")}`
 }
 
 export function reviewPrompt(opts: { skill?: string; prompt?: string } = {}): string {

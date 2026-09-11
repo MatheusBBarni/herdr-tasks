@@ -173,7 +173,7 @@ Shared hook. Do not invent Herdr APIs. Capture IDs from JSON.
 6. Parse JSON; save `workspace_id` + `pane_id`.
 7. Start `command` in that pane (project cwd), appending the task's effort flag for the agent `kind` when effort is set. Register/detect with `kind` only if required. If `agent start` would ignore `command`, do not use that path.
 8. `safe-name` = slug(task id), `[a-z][a-z0-9_-]{0,31}`, unique.
-9. `herdr agent prompt …` with the first-prompt template from `htasks-prompt.md` (read the task file, follow the skill, `htasks move <id> review`).
+9. `herdr agent prompt …` with the first-prompt template: task body (the spec), read the task file, follow the skill, implement fully, then `htasks move <id> review` (or the in_progress `next_step`). Do not wait for a human.
 10. If Herdr server is down, start/attach once, retry create; surface stderr.
 11. Leaving `in_progress` does **not** kill Herdr in MVP.
 12. If `herdr.pane_id` already set, `move in_progress` only updates status (idempotent).
@@ -187,7 +187,7 @@ Shared hook. Reuse a live implementer pane when present; otherwise the same Herd
 3. Resolve agent from `[review] agent` if set, else the task agent. Unknown key → error.
 4. If a live `herdr.pane_id` exists, reuse it. Do **not** create another Herdr layout (`workspace` / `tab` / `pane`).
 5. Only if there is no live pane: if `worktree` is yes, reuse/create the task worktree then create layout from `[herdr] behavior`; otherwise create layout in the task project and start that agent's `command`.
-6. `herdr agent prompt …` with the `[review] skill` file body (if set), then the `[review] prompt` file body. Empty prompt uses `.herdr-tasks/prompts/review.md`.
+6. `herdr agent prompt …` with the `[review] skill` file body (if set), then the `[review] prompt` file body. Empty prompt uses `.herdr-tasks/prompts/review.md`. Default prompt: review, address findings, commit, push, open and merge the PR, delete the branch, then `htasks move <id> <next_step>` (`done` by default).
 7. Missing `[review] skill` name/path or `[review] prompt` path (when set) → error and revert.
 8. If already `review` and `herdr.pane_id` is still alive, only update status (idempotent).
 9. Leaving `review` does **not** kill Herdr in MVP.
