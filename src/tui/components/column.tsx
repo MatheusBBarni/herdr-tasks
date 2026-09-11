@@ -149,6 +149,7 @@ export function Column(props: ColumnProps) {
                 selected={props.selectedId === task.id}
                 launching={props.launchingIds.has(task.id)}
                 defaultProject={props.defaultProject}
+                laneName={props.name}
                 agentStatus={
                   isLaunchLane(task.status, props.laneDefs) && task.herdr.pane_id
                     ? props.agentStatuses.get(task.herdr.pane_id)

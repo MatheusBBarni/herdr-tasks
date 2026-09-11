@@ -59,7 +59,7 @@ test("in_progress card shows the status word at 80-col column width", async () =
     { width: 26, height: 8 },
   )
   expect(frame).toContain("working")
-  expect(frame).toContain("pi")
+  expect(frame).toContain("feat  pi")
   expect(frame).toContain("dev-14")
   expect(frame).not.toContain(">")
   expect(frame).not.toContain("herdr-tasks")
@@ -83,6 +83,51 @@ test("in_progress card meta fits the 60-col floor without wrapping", async () =>
   expect(frame).toContain("pi")
   expect(frame).toContain("dev-14")
   expect(frame).not.toContain("feat  blocked")
+})
+
+test("card shows compact task hints without adding a fourth line", async () => {
+  const frame = await renderCard(
+    <Card
+      task={{
+        ...task,
+        blockers: ["dev-1", "dev-2"],
+        effort: "high",
+        worktree: true,
+      }}
+      width={60}
+      focused={false}
+      selected={false}
+      launching={false}
+      defaultProject={project}
+      agentStatus="working"
+      onMouseDown={() => {}}
+    />,
+    { width: 60, height: 8 },
+  )
+  expect(frame).toContain("feat  pi")
+  expect(frame).toContain("blockers:2")
+  expect(frame).toContain("effort:high")
+  expect(frame).toContain("wt")
+})
+
+test("custom lane names are shown and Herdr done stays idle", async () => {
+  const frame = await renderCard(
+    <Card
+      task={{ ...task, status: "qa" }}
+      width={40}
+      focused={false}
+      selected={false}
+      launching={false}
+      laneName="Quality"
+      defaultProject={project}
+      agentStatus="done"
+      onMouseDown={() => {}}
+    />,
+    { width: 40, height: 8 },
+  )
+  expect(frame).toContain("idle")
+  expect(frame).toContain("feat  pi")
+  expect(frame).not.toContain("✓ done")
 })
 
 test("launching card keeps starting… instead of live status", async () => {

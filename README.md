@@ -209,7 +209,7 @@ default_type = "feat"
 ```
 
 Create/edit form has a type select.
-Cards show the type before the agent key.
+Cards show the type before the agent key. Cards also show compact blockers, effort, and worktree hints on the status row.
 CLI: `htasks create --title "Crash on save" --type bug`.
 
 ## Custom lanes
@@ -271,7 +271,7 @@ Cycling the theme field in settings previews live; Esc discards, Ctrl+Enter save
 
 The board does not block on Herdr.
 The card shows `starting…` until the launch finishes.
-In Progress cards poll `herdr agent list` and show one live lifecycle word (`working`, `blocked`, `idle`, `done`, `unknown`, or `gone`) before the agent key and project. That status stays in board memory — it is never written to task markdown. Herdr `done` means unseen idle; it does not finish the task.
+In Progress cards poll `herdr agent list` and show one live lifecycle word (`working`, `blocked`, `idle`, `unknown`, or `gone`) before the type, agent key, and project. A Herdr `done` result is shown as idle; it does not finish the task. Custom lanes show their lane id or configured name instead of idle. That status stays in board memory — it is never written to task markdown.
 Press `o` on a launch-lane card (in progress, review, or a prompted custom lane) to focus that layout (`workspace focus`, `tab focus`, or `agent focus` for pane).
 Press `c` on a done card to close that layout (`workspace close`, `tab close`, or `pane close`).
 
