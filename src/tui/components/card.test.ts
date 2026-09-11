@@ -2,6 +2,7 @@ import { expect, test } from "bun:test"
 import { cellWidth } from "../../lib/text.ts"
 import {
   cardAgentLine,
+  cardHintLine,
   cardInnerWidth,
   cardStatusView,
   cardTitleLine,
@@ -37,6 +38,9 @@ test("cardStatusView maps lane and live agent state", () => {
   expect(
     cardStatusView({ launching: false, lane: "in_progress", agentStatus: "blocked" }),
   ).toEqual({ label: "? blocked", tone: "warn" })
+  expect(
+    cardStatusView({ launching: false, lane: "in_progress", agentStatus: "done" }),
+  ).toEqual({ label: "idle", tone: "muted" })
   expect(cardStatusView({ launching: false, lane: "done" })).toEqual({
     label: "✓ done",
     tone: "ok",
@@ -44,17 +48,34 @@ test("cardStatusView maps lane and live agent state", () => {
   expect(
     cardStatusView({ launching: false, lane: "in_progress", agentStatus: "gone" }),
   ).toEqual({ label: "gone", tone: "muted" })
+  expect(cardStatusView({ launching: false, lane: "qa" })).toEqual({
+    label: "qa",
+    tone: "accent",
+  })
+  expect(
+    cardStatusView({ launching: false, lane: "qa", laneName: "QA" }),
+  ).toEqual({ label: "QA", tone: "accent" })
 })
 
-test("cardAgentLine drops the default project and keeps a different basename", () => {
-  expect(cardAgentLine({ agent: "pi", project, defaultProject: project })).toBe("pi")
+test("cardAgentLine puts type before agent and keeps project context", () => {
+  expect(cardAgentLine({ type: "feat", agent: "pi", project, defaultProject: project })).toBe(
+    "feat  pi",
+  )
   expect(
     cardAgentLine({
+      type: "fix",
       agent: "pi",
       project: "/tmp/other",
       defaultProject: project,
     }),
-  ).toBe("pi  other")
+  ).toBe("fix  pi  other")
+})
+
+test("cardHintLine compactly shows blockers, effort, and worktree", () => {
+  expect(cardHintLine({ blockers: ["dev-1", "dev-2"], effort: "high", worktree: true })).toBe(
+    "blockers:2  effort:high  wt",
+  )
+  expect(cardHintLine({ blockers: [], effort: "", worktree: false })).toBe("")
 })
 
 test("card title and status lines truncate by cell width at 80×24 four-column and 60-col floor", () => {

@@ -19,6 +19,7 @@ type CardProps = {
   selected: boolean
   launching: boolean
   defaultProject: string
+  laneName?: string
   agentStatus?: LiveAgentStatus
   onMouseDown: () => void
 }
@@ -37,6 +38,7 @@ export function cardTitleLine(id: string, title: string, inner: number): string 
 
 export function cardStatusView(opts: {
   lane: Lane
+  laneName?: string
   launching: boolean
   agentStatus?: LiveAgentStatus
 }): CardStatusView {
@@ -51,7 +53,7 @@ export function cardStatusView(opts: {
       case "blocked":
         return { label: "? blocked", tone: "warn" }
       case "done":
-        return { label: "✓ done", tone: "ok" }
+        return { label: "idle", tone: "muted" }
       case "gone":
         return { label: "gone", tone: "muted" }
       case "unknown":
@@ -60,18 +62,33 @@ export function cardStatusView(opts: {
   }
   if (opts.lane === "in_progress") return { label: "in_progress", tone: "warn" }
   if (opts.lane === "review") return { label: "review", tone: "accent" }
-  return { label: "idle", tone: "muted" }
+  if (opts.lane === "backlog") return { label: "idle", tone: "muted" }
+  return { label: opts.laneName?.trim() || opts.lane, tone: "accent" }
+}
+
+export function cardHintLine(task: Pick<Task, "blockers" | "effort" | "worktree">): string {
+  const hints: string[] = []
+  if (task.blockers.length > 0) {
+    hints.push(`blockers:${task.blockers.length}`)
+  }
+  if (task.effort.trim()) {
+    hints.push(`effort:${task.effort.trim()}`)
+  }
+  if (task.worktree) hints.push("wt")
+  return hints.join("  ")
 }
 
 export function cardAgentLine(opts: {
+  type?: string
   agent: string
   project: string
   defaultProject: string
 }): string {
+  const identity = [opts.type, opts.agent].filter(Boolean).join("  ")
   if (opts.defaultProject && sameProject(opts.project, opts.defaultProject)) {
-    return opts.agent
+    return identity
   }
-  return `${opts.agent}  ${basename(opts.project)}`
+  return `${identity}  ${basename(opts.project)}`
 }
 
 export function toneColor(tone: CardTone, theme: ThemePalette): string {
@@ -93,19 +110,24 @@ export function Card(props: CardProps) {
   const inner = cardInnerWidth(props.width, props.selected)
   const status = cardStatusView({
     lane: props.task.status,
+    laneName: props.laneName,
     launching: props.launching,
     agentStatus: props.agentStatus,
   })
   const title = cardTitleLine(props.task.id, props.task.title, inner)
   const agent = truncateCells(
     cardAgentLine({
+      type: props.task.type,
       agent: props.task.agent,
       project: props.task.project,
       defaultProject: props.defaultProject,
     }),
     inner,
   )
-  const statusLabel = truncateCells(status.label, inner)
+  const statusLabel = truncateCells(
+    [status.label, cardHintLine(props.task)].filter(Boolean).join("  "),
+    inner,
+  )
   const done = props.task.status === "done"
   const highlight = props.focused || props.selected
   const borderFg = color ? (highlight ? theme.focus : theme.border) : undefined
